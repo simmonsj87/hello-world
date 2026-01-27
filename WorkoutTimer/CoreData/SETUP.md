@@ -92,11 +92,12 @@ struct ExerciseListView: View {
 #### Creating New Objects
 
 ```swift
-func addExercise(name: String, category: String) {
+func addExercise(name: String, category: String, difficulty: String = "Medium") {
     let exercise = Exercise(context: viewContext)
     exercise.id = UUID()
     exercise.name = name
     exercise.category = category
+    exercise.difficulty = difficulty
     exercise.createdDate = Date()
 
     do {
@@ -155,6 +156,7 @@ struct ExerciseListView_Previews: PreviewProvider {
 | id          | UUID   | Unique identifier              |
 | name        | String | Exercise name                  |
 | category    | String | Category (Strength, Cardio...) |
+| difficulty  | String | Difficulty level (Easy, Medium, Hard) |
 | createdDate | Date   | When the exercise was created  |
 
 **Relationships:**
@@ -190,6 +192,7 @@ The entity extensions include helpful computed properties:
 ### Exercise
 - `wrappedName` - Non-optional name
 - `wrappedCategory` - Non-optional category
+- `wrappedDifficulty` - Non-optional difficulty (defaults to "Medium")
 - `workoutExercisesArray` - Sorted array of workout exercises
 
 ### Workout
@@ -218,6 +221,7 @@ If you prefer to create the model manually in Xcode:
      - `id` (UUID)
      - `name` (String)
      - `category` (String)
+     - `difficulty` (String)
      - `createdDate` (Date)
 
 4. **Create Workout Entity:**

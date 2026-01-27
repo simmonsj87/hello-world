@@ -22,19 +22,20 @@ struct PersistenceController {
 
         // Create sample exercises
         let exercises = [
-            ("Push-ups", "Strength"),
-            ("Squats", "Strength"),
-            ("Plank", "Core"),
-            ("Jumping Jacks", "Cardio"),
-            ("Rest", "Recovery")
+            ("Push-ups", "Strength", "Medium"),
+            ("Squats", "Strength", "Easy"),
+            ("Plank", "Core", "Hard"),
+            ("Jumping Jacks", "Cardio", "Easy"),
+            ("Rest", "Recovery", "Easy")
         ]
 
         var sampleExercises: [Exercise] = []
-        for (name, category) in exercises {
+        for (name, category, difficulty) in exercises {
             let exercise = Exercise(context: viewContext)
             exercise.id = UUID()
             exercise.name = name
             exercise.category = category
+            exercise.difficulty = difficulty
             exercise.createdDate = Date()
             sampleExercises.append(exercise)
         }
