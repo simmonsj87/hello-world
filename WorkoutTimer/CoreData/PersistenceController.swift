@@ -20,13 +20,40 @@ struct PersistenceController {
         let controller = PersistenceController(inMemory: true)
         let viewContext = controller.container.viewContext
 
-        // Create sample exercises
+        // Create default categories
+        let defaultCategories = Category.defaultCategoryNames
+        for (index, categoryName) in defaultCategories.enumerated() {
+            let category = Category(context: viewContext)
+            category.id = UUID()
+            category.name = categoryName
+            category.isDefault = true
+            category.orderIndex = Int16(index)
+            category.createdDate = Date()
+        }
+
+        // Add a custom category
+        let customCategory = Category(context: viewContext)
+        customCategory.id = UUID()
+        customCategory.name = "Flexibility"
+        customCategory.isDefault = false
+        customCategory.orderIndex = Int16(defaultCategories.count)
+        customCategory.createdDate = Date()
+
+        // Create sample exercises with new categories
         let exercises = [
-            ("Push-ups", "Strength"),
-            ("Squats", "Strength"),
+            ("Push-ups", "Upper Body"),
+            ("Bench Press", "Upper Body"),
+            ("Pull-ups", "Upper Body"),
+            ("Squats", "Lower Body"),
+            ("Lunges", "Lower Body"),
+            ("Deadlifts", "Lower Body"),
             ("Plank", "Core"),
+            ("Crunches", "Core"),
             ("Jumping Jacks", "Cardio"),
-            ("Rest", "Recovery")
+            ("Running", "Cardio"),
+            ("Burpees", "Full Body"),
+            ("Mountain Climbers", "Full Body"),
+            ("Yoga Stretch", "Flexibility")
         ]
 
         var sampleExercises: [Exercise] = []

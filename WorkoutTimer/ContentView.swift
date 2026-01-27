@@ -2,13 +2,34 @@
 //  ContentView.swift
 //  WorkoutTimer
 //
-//  Main content view for the Workout Timer app.
+//  Main content view for the Workout Timer app with tab navigation.
 //
 
 import SwiftUI
 import CoreData
 
 struct ContentView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+
+    var body: some View {
+        TabView {
+            WorkoutListView()
+                .tabItem {
+                    Label("Workouts", systemImage: "figure.run")
+                }
+
+            ExerciseListView()
+                .tabItem {
+                    Label("Exercises", systemImage: "list.bullet")
+                }
+        }
+        .onAppear {
+            Category.createDefaultCategories(in: viewContext)
+        }
+    }
+}
+
+struct WorkoutListView: View {
     @Environment(\.managedObjectContext) private var viewContext
 
     @FetchRequest(
@@ -19,15 +40,29 @@ struct ContentView: View {
 
     var body: some View {
         NavigationView {
-            List {
+            Group {
                 if workouts.isEmpty {
-                    Text("No workouts yet")
-                        .foregroundColor(.secondary)
-                } else {
-                    ForEach(workouts) { workout in
-                        WorkoutRow(workout: workout)
+                    VStack(spacing: 16) {
+                        Image(systemName: "figure.run")
+                            .font(.system(size: 60))
+                            .foregroundColor(.secondary)
+                        Text("No Workouts Yet")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Text("Tap the + button to create your first workout")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
                     }
-                    .onDelete(perform: deleteWorkouts)
+                    .padding()
+                } else {
+                    List {
+                        ForEach(workouts) { workout in
+                            WorkoutRow(workout: workout)
+                        }
+                        .onDelete(perform: deleteWorkouts)
+                    }
+                    .listStyle(.insetGrouped)
                 }
             }
             .navigationTitle("Workouts")
