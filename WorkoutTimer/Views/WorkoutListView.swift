@@ -18,6 +18,7 @@ struct WorkoutListView: View {
     private var workouts: FetchedResults<Workout>
 
     @State private var showingWorkoutBuilder = false
+    @State private var showingRandomGenerator = false
     @State private var workoutToEdit: Workout?
     @State private var workoutToRun: Workout?
 
@@ -32,6 +33,12 @@ struct WorkoutListView: View {
             }
             .navigationTitle("Workouts")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { showingRandomGenerator = true }) {
+                        Label("Random", systemImage: "shuffle")
+                    }
+                }
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingWorkoutBuilder = true }) {
                         Label("Add Workout", systemImage: "plus")
@@ -40,6 +47,10 @@ struct WorkoutListView: View {
             }
             .sheet(isPresented: $showingWorkoutBuilder) {
                 WorkoutBuilderView()
+                    .environment(\.managedObjectContext, viewContext)
+            }
+            .sheet(isPresented: $showingRandomGenerator) {
+                RandomWorkoutGeneratorView()
                     .environment(\.managedObjectContext, viewContext)
             }
             .sheet(item: $workoutToEdit) { workout in
@@ -56,25 +67,38 @@ struct WorkoutListView: View {
     // MARK: - Empty State View
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Image(systemName: "figure.run")
                 .font(.system(size: 60))
                 .foregroundColor(.secondary)
             Text("No Workouts Yet")
                 .font(.title2)
                 .fontWeight(.semibold)
-            Text("Tap the + button to create your first workout")
+            Text("Create a custom workout or generate a random one")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
 
-            Button(action: { showingWorkoutBuilder = true }) {
-                Label("Create Workout", systemImage: "plus.circle.fill")
-                    .font(.headline)
-                    .padding()
-                    .background(Color.accentColor)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+            HStack(spacing: 16) {
+                Button(action: { showingWorkoutBuilder = true }) {
+                    Label("Create", systemImage: "plus.circle.fill")
+                        .font(.headline)
+                        .padding()
+                        .frame(minWidth: 120)
+                        .background(Color.accentColor)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+
+                Button(action: { showingRandomGenerator = true }) {
+                    Label("Random", systemImage: "shuffle")
+                        .font(.headline)
+                        .padding()
+                        .frame(minWidth: 120)
+                        .background(Color.orange)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
             }
             .padding(.top, 8)
         }
