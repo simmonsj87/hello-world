@@ -2,7 +2,7 @@
 //  WorkoutListView.swift
 //  WorkoutTimer
 //
-//  View displaying all workouts with add and delete functionality.
+//  View displaying all workouts with add, edit, and delete functionality.
 //
 
 import SwiftUI
@@ -17,59 +17,82 @@ struct WorkoutListView: View {
     )
     private var workouts: FetchedResults<Workout>
 
+    @State private var showingWorkoutBuilder = false
+    @State private var workoutToEdit: Workout?
+
     var body: some View {
         NavigationView {
             Group {
                 if workouts.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "figure.run")
-                            .font(.system(size: 60))
-                            .foregroundColor(.secondary)
-                        Text("No Workouts Yet")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        Text("Tap the + button to create your first workout")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
+                    emptyStateView
                 } else {
-                    List {
-                        ForEach(workouts) { workout in
-                            WorkoutRow(workout: workout)
-                        }
-                        .onDelete(perform: deleteWorkouts)
-                    }
-                    .listStyle(.insetGrouped)
+                    workoutListContent
                 }
             }
             .navigationTitle("Workouts")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: addSampleWorkout) {
+                    Button(action: { showingWorkoutBuilder = true }) {
                         Label("Add Workout", systemImage: "plus")
                     }
                 }
             }
-        }
-    }
-
-    private func addSampleWorkout() {
-        withAnimation {
-            let workout = Workout(context: viewContext)
-            workout.id = UUID()
-            workout.name = "New Workout"
-            workout.createdDate = Date()
-
-            do {
-                try viewContext.save()
-            } catch {
-                let nsError = error as NSError
-                print("Error saving workout: \(nsError), \(nsError.userInfo)")
+            .sheet(isPresented: $showingWorkoutBuilder) {
+                WorkoutBuilderView()
+                    .environment(\.managedObjectContext, viewContext)
+            }
+            .sheet(item: $workoutToEdit) { workout in
+                WorkoutBuilderView(existingWorkout: workout)
+                    .environment(\.managedObjectContext, viewContext)
             }
         }
     }
+
+    // MARK: - Empty State View
+
+    private var emptyStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "figure.run")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary)
+            Text("No Workouts Yet")
+                .font(.title2)
+                .fontWeight(.semibold)
+            Text("Tap the + button to create your first workout")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            Button(action: { showingWorkoutBuilder = true }) {
+                Label("Create Workout", systemImage: "plus.circle.fill")
+                    .font(.headline)
+                    .padding()
+                    .background(Color.accentColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+            }
+            .padding(.top, 8)
+        }
+        .padding()
+    }
+
+    // MARK: - Workout List Content
+
+    private var workoutListContent: some View {
+        List {
+            ForEach(workouts) { workout in
+                WorkoutRow(workout: workout)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        workoutToEdit = workout
+                    }
+            }
+            .onDelete(perform: deleteWorkouts)
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    // MARK: - Actions
 
     private func deleteWorkouts(offsets: IndexSet) {
         withAnimation {
@@ -85,23 +108,39 @@ struct WorkoutListView: View {
     }
 }
 
+// MARK: - Workout Row
+
 struct WorkoutRow: View {
-    let workout: Workout
+    @ObservedObject var workout: Workout
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(workout.wrappedName)
-                .font(.headline)
-            HStack {
-                Text("\(workout.exerciseCount) exercises")
-                Text(workout.formattedTotalDuration)
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(workout.wrappedName)
+                    .font(.headline)
+
+                HStack(spacing: 12) {
+                    Label("\(workout.exerciseCount)", systemImage: "figure.mixed.cardio")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Label(workout.formattedTotalDuration, systemImage: "clock")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            .font(.subheadline)
-            .foregroundColor(.secondary)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
         .padding(.vertical, 4)
     }
 }
+
+// MARK: - Preview
 
 struct WorkoutListView_Previews: PreviewProvider {
     static var previews: some View {
