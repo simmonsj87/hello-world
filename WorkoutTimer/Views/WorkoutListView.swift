@@ -2,7 +2,7 @@
 //  WorkoutListView.swift
 //  WorkoutTimer
 //
-//  View displaying all workouts with add, edit, and delete functionality.
+//  View displaying all workouts with start, edit, and delete functionality.
 //
 
 import SwiftUI
@@ -19,6 +19,7 @@ struct WorkoutListView: View {
 
     @State private var showingWorkoutBuilder = false
     @State private var workoutToEdit: Workout?
+    @State private var workoutToRun: Workout?
 
     var body: some View {
         NavigationView {
@@ -43,6 +44,10 @@ struct WorkoutListView: View {
             }
             .sheet(item: $workoutToEdit) { workout in
                 WorkoutBuilderView(existingWorkout: workout)
+                    .environment(\.managedObjectContext, viewContext)
+            }
+            .fullScreenCover(item: $workoutToRun) { workout in
+                WorkoutExecutionView(workout: workout)
                     .environment(\.managedObjectContext, viewContext)
             }
         }
@@ -81,11 +86,11 @@ struct WorkoutListView: View {
     private var workoutListContent: some View {
         List {
             ForEach(workouts) { workout in
-                WorkoutRow(workout: workout)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        workoutToEdit = workout
-                    }
+                WorkoutRowWithActions(
+                    workout: workout,
+                    onStart: { workoutToRun = workout },
+                    onEdit: { workoutToEdit = workout }
+                )
             }
             .onDelete(perform: deleteWorkouts)
         }
@@ -108,19 +113,35 @@ struct WorkoutListView: View {
     }
 }
 
-// MARK: - Workout Row
+// MARK: - Workout Row With Actions
 
-struct WorkoutRow: View {
+struct WorkoutRowWithActions: View {
     @ObservedObject var workout: Workout
+    let onStart: () -> Void
+    let onEdit: () -> Void
+
+    private var canStart: Bool {
+        workout.exerciseCount > 0
+    }
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            // Start button
+            Button(action: onStart) {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 44))
+                    .foregroundColor(canStart ? .green : .gray)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canStart)
+
+            // Workout info
             VStack(alignment: .leading, spacing: 4) {
                 Text(workout.wrappedName)
                     .font(.headline)
 
                 HStack(spacing: 12) {
-                    Label("\(workout.exerciseCount)", systemImage: "figure.mixed.cardio")
+                    Label("\(workout.exerciseCount) exercises", systemImage: "figure.mixed.cardio")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -128,15 +149,25 @@ struct WorkoutRow: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+
+                if !canStart {
+                    Text("Add exercises to start")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
             }
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Edit button
+            Button(action: onEdit) {
+                Image(systemName: "pencil.circle")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
     }
 }
 
