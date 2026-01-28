@@ -84,13 +84,15 @@ class IntervalTimerManager: ObservableObject {
         isPaused = false
         hasAnnouncedCountdown = false
 
-        // Announce start with countdown
-        voiceManager?.announceIntervalWorkStart()
-
-        // Delay timer start to allow countdown to finish
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { [weak self] in
+        // Announce start with countdown - timer starts when "Go!" is said
+        voiceManager?.announceIntervalWorkStart { [weak self] in
             guard let self = self, self.currentState == .working && !self.isPaused else { return }
             self.startTimer()
+        }
+
+        // Fallback: if voice is disabled, start immediately
+        if voiceManager == nil || !(voiceManager?.isEnabled ?? true) {
+            startTimer()
         }
     }
 

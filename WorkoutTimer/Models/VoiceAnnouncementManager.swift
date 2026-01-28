@@ -7,6 +7,7 @@
 
 import Foundation
 import AVFoundation
+import AudioToolbox
 import Combine
 
 class VoiceAnnouncementManager: NSObject, ObservableObject {
@@ -53,8 +54,12 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     private var announcementQueue: [String] = []
     private var isProcessingQueue = false
     private var countdownTimer: Timer?
+    private var countdownCompletion: (() -> Void)?
 
     private let settingsKey = "VoiceAnnouncementSettings"
+
+    // System sound IDs for bell sounds
+    private let bellSoundID: SystemSoundID = 1013  // Mail sent sound (ding)
 
     // MARK: - Computed Properties
 
@@ -155,29 +160,41 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         speak("Congratulations! Workout complete. Great job!")
     }
 
-    /// Announces interval timer work starting with countdown
-    func announceIntervalWorkStart() {
-        guard isEnabled else { return }
+    /// Announces interval timer work starting with countdown, calls completion when "Go!" is said
+    func announceIntervalWorkStart(completion: (() -> Void)? = nil) {
+        guard isEnabled else {
+            completion?()
+            return
+        }
 
         stop()
+        countdownCompletion = completion
         announcementQueue = ["3", "2", "1", "Go!"]
         processNextAnnouncement()
     }
 
     /// Announces interval timer work ending (going to rest) with countdown
-    func announceIntervalWorkEnd() {
-        guard isEnabled else { return }
+    func announceIntervalWorkEnd(completion: (() -> Void)? = nil) {
+        guard isEnabled else {
+            completion?()
+            return
+        }
 
         stop()
+        countdownCompletion = completion
         announcementQueue = ["3", "2", "1", "Stop"]
         processNextAnnouncement()
     }
 
     /// Announces interval timer rest ending (going to work) with countdown
-    func announceIntervalRestEnd() {
-        guard isEnabled else { return }
+    func announceIntervalRestEnd(completion: (() -> Void)? = nil) {
+        guard isEnabled else {
+            completion?()
+            return
+        }
 
         stop()
+        countdownCompletion = completion
         announcementQueue = ["3", "2", "1", "Go!"]
         processNextAnnouncement()
     }
@@ -185,13 +202,17 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     /// Plays a bell/ding sound for transitions
     func playBell() {
         guard isEnabled else { return }
-        // Use a short spoken "ding" sound
-        let utterance = AVSpeechUtterance(string: "ding ding")
-        utterance.voice = currentVoice ?? AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.6
-        utterance.volume = volume
-        utterance.pitchMultiplier = 1.3
-        speechSynthesizer.speak(utterance)
+        // Play system bell sound
+        AudioServicesPlaySystemSound(bellSoundID)
+    }
+
+    /// Plays a double bell sound for emphasis
+    func playDoubleBell() {
+        guard isEnabled else { return }
+        AudioServicesPlaySystemSound(bellSoundID)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            AudioServicesPlaySystemSound(self.bellSoundID)
+        }
     }
 
     /// Announces round completion for interval timer
@@ -210,8 +231,8 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         guard isEnabled else { return }
 
         stop()
-        playBell()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+        playDoubleBell()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.speak("Workout complete! Great job!")
         }
     }
@@ -257,6 +278,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         countdownTimer = nil
         announcementQueue.removeAll()
         isProcessingQueue = false
+        countdownCompletion = nil
 
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
@@ -385,6 +407,12 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
             } else {
                 self.isSpeaking = false
                 self.isProcessingQueue = false
+
+                // Call completion handler when countdown queue finishes
+                if let completion = self.countdownCompletion {
+                    self.countdownCompletion = nil
+                    completion()
+                }
             }
         }
     }
