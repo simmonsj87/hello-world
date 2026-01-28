@@ -9,17 +9,6 @@ import SwiftUI
 import CoreData
 import UserNotifications
 
-// MARK: - Workout Execution State
-
-enum WorkoutExecutionState: Equatable {
-    case ready
-    case countdown
-    case running
-    case resting
-    case paused
-    case completed
-}
-
 // MARK: - Workout Execution View
 
 struct WorkoutExecutionView: View {
