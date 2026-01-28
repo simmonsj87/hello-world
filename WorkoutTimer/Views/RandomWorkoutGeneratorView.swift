@@ -40,8 +40,13 @@ struct RandomWorkoutGeneratorView: View {
 
     // Exercise settings
     @State private var exerciseDuration: Int = 30
-    @State private var restDuration: Int = 15
+    @State private var restBetweenExercises: Int = 15
+    @State private var restBetweenRounds: Int = 60
     @State private var avoidRecentExercises = true
+
+    // Rounds and execution mode
+    @State private var rounds: Int = 1
+    @State private var executionMode: ExecutionMode = .roundRobin
 
     // Generated workout
     @State private var generatedExercises: [GeneratedExercise] = []
@@ -61,9 +66,13 @@ struct RandomWorkoutGeneratorView: View {
     }
 
     private var totalWorkoutTime: Int {
+        guard !generatedExercises.isEmpty else { return 0 }
         let exerciseTime = generatedExercises.count * exerciseDuration
-        let restTime = max(0, generatedExercises.count - 1) * restDuration
-        return exerciseTime + restTime
+        let exerciseRestTime = max(0, generatedExercises.count - 1) * restBetweenExercises
+        let roundTime = exerciseTime + exerciseRestTime
+        let totalRoundTime = roundTime * rounds
+        let roundRestTime = max(0, rounds - 1) * restBetweenRounds
+        return totalRoundTime + roundRestTime
     }
 
     private var formattedTotalTime: String {
@@ -192,11 +201,57 @@ struct RandomWorkoutGeneratorView: View {
                 }
             }
 
-            // Exercise Settings
+            // Rounds and Execution Mode
+            Section {
+                // Rounds
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Rounds")
+                        Spacer()
+                        Text("\(rounds)")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.accentColor)
+                    }
+
+                    HStack(spacing: 8) {
+                        ForEach([1, 2, 3, 4, 5], id: \.self) { num in
+                            Button(action: { rounds = num }) {
+                                Text("\(num)")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(rounds == num ? Color.accentColor : Color(.tertiarySystemBackground))
+                                    .foregroundColor(rounds == num ? .white : .primary)
+                                    .cornerRadius(8)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                // Execution Mode
+                Picker("Execution Mode", selection: $executionMode) {
+                    Text("Round Robin").tag(ExecutionMode.roundRobin)
+                    Text("Sequential").tag(ExecutionMode.sequential)
+                }
+                .pickerStyle(.segmented)
+
+            } header: {
+                Text("Rounds & Execution")
+            } footer: {
+                if executionMode == .roundRobin {
+                    Text("Round Robin: Cycle through all exercises, then repeat for each round.")
+                } else {
+                    Text("Sequential: Complete all rounds of each exercise before moving to the next.")
+                }
+            }
+
+            // Timing Settings
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Exercise Duration")
+                        Text("Time Per Exercise")
                         Spacer()
                         Text("\(exerciseDuration) sec")
                             .foregroundColor(.secondary)
@@ -211,13 +266,28 @@ struct RandomWorkoutGeneratorView: View {
                     HStack {
                         Text("Rest Between Exercises")
                         Spacer()
-                        Text(restDuration == 0 ? "None" : "\(restDuration) sec")
+                        Text(restBetweenExercises == 0 ? "None" : "\(restBetweenExercises) sec")
                             .foregroundColor(.secondary)
                     }
                     Slider(value: Binding(
-                        get: { Double(restDuration) },
-                        set: { restDuration = Int($0) }
-                    ), in: 0...60, step: 5)
+                        get: { Double(restBetweenExercises) },
+                        set: { restBetweenExercises = Int($0) }
+                    ), in: 0...120, step: 5)
+                }
+
+                if rounds > 1 {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Rest Between Rounds")
+                            Spacer()
+                            Text(restBetweenRounds == 0 ? "None" : "\(restBetweenRounds) sec")
+                                .foregroundColor(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(restBetweenRounds) },
+                            set: { restBetweenRounds = Int($0) }
+                        ), in: 0...180, step: 15)
+                    }
                 }
             } header: {
                 Text("Timing")
@@ -237,7 +307,7 @@ struct RandomWorkoutGeneratorView: View {
                 HStack {
                     Text("Total Exercises in Database")
                     Spacer()
-                    Text("\(allExercises.count)")
+                    Text("\(allExercises.filter { $0.isEnabled }.count)")
                         .foregroundColor(.secondary)
                 }
 
@@ -270,6 +340,20 @@ struct RandomWorkoutGeneratorView: View {
                 }
 
                 HStack {
+                    Label("Rounds", systemImage: "repeat")
+                    Spacer()
+                    Text("\(rounds)")
+                        .fontWeight(.semibold)
+                }
+
+                HStack {
+                    Label("Mode", systemImage: executionMode == .roundRobin ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
+                    Spacer()
+                    Text(executionMode == .roundRobin ? "Round Robin" : "Sequential")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
                     Label("Total Time", systemImage: "clock")
                     Spacer()
                     Text(formattedTotalTime)
@@ -277,10 +361,26 @@ struct RandomWorkoutGeneratorView: View {
                 }
 
                 HStack {
-                    Label("Rest", systemImage: "pause.circle")
+                    Label("Per Exercise", systemImage: "timer")
                     Spacer()
-                    Text(restDuration == 0 ? "None" : "\(restDuration)s between")
+                    Text("\(exerciseDuration)s")
                         .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Label("Rest (Exercises)", systemImage: "pause.circle")
+                    Spacer()
+                    Text(restBetweenExercises == 0 ? "None" : "\(restBetweenExercises)s")
+                        .foregroundColor(.secondary)
+                }
+
+                if rounds > 1 {
+                    HStack {
+                        Label("Rest (Rounds)", systemImage: "arrow.counterclockwise")
+                        Spacer()
+                        Text(restBetweenRounds == 0 ? "None" : "\(restBetweenRounds)s")
+                            .foregroundColor(.secondary)
+                    }
                 }
             } header: {
                 Text("Workout Summary")
@@ -408,15 +508,6 @@ struct RandomWorkoutGeneratorView: View {
             return
         }
 
-        let requestedTotal = targetCounts.reduce(0) { $0 + $1.1 }
-        if selected.count < requestedTotal {
-            // We got some but not all - show warning but continue
-            let missing = requestedTotal - selected.count
-            if missing > 0 {
-                // Silently continue with fewer exercises
-            }
-        }
-
         // Shuffle the final list for variety
         generatedExercises = selected.shuffled()
 
@@ -427,7 +518,7 @@ struct RandomWorkoutGeneratorView: View {
 
     private func calculateCountsForDuration(availableByCategory: [String: [Exercise]]) -> [(String, Int)] {
         let totalTimeSeconds = targetDuration * 60
-        let timePerExercise = exerciseDuration + restDuration
+        let timePerExercise = exerciseDuration + restBetweenExercises
         let maxExercises = max(1, totalTimeSeconds / timePerExercise)
 
         // Get category distribution ratios
@@ -496,6 +587,13 @@ struct RandomWorkoutGeneratorView: View {
         workout.id = UUID()
         workout.name = name
         workout.createdDate = Date()
+
+        // Set workout-level settings
+        workout.rounds = Int16(rounds)
+        workout.timePerExercise = Int32(exerciseDuration)
+        workout.restBetweenExercises = Int32(restBetweenExercises)
+        workout.restBetweenRounds = Int32(restBetweenRounds)
+        workout.executionMode = executionMode.rawValue
 
         for (index, generated) in generatedExercises.enumerated() {
             let workoutExercise = WorkoutExercise(context: viewContext)
