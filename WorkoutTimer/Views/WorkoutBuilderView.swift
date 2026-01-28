@@ -2,7 +2,7 @@
 //  WorkoutBuilderView.swift
 //  WorkoutTimer
 //
-//  View for creating and editing workouts with exercise selection and reordering.
+//  View for creating and editing workouts with exercise selection and workout-level timing settings.
 //
 
 import SwiftUI
@@ -15,8 +15,18 @@ struct WorkoutBuilderView: View {
     // Workout being edited (nil for new workout)
     var existingWorkout: Workout?
 
+    // Basic Info
     @State private var workoutName: String = ""
     @State private var selectedExercises: [SelectedExercise] = []
+
+    // Workout-level settings
+    @State private var rounds: Int = 1
+    @State private var timePerExercise: Int = 30
+    @State private var restBetweenExercises: Int = 15
+    @State private var restBetweenRounds: Int = 60
+    @State private var executionMode: ExecutionMode = .sequential
+
+    // UI State
     @State private var showingExercisePicker = false
     @State private var showingDiscardAlert = false
 
@@ -29,7 +39,13 @@ struct WorkoutBuilderView: View {
     }
 
     private var totalDuration: Int {
-        selectedExercises.reduce(0) { $0 + $1.duration }
+        guard !selectedExercises.isEmpty else { return 0 }
+        let exerciseTime = selectedExercises.count * timePerExercise
+        let exerciseRestTime = max(0, selectedExercises.count - 1) * restBetweenExercises
+        let roundTime = exerciseTime + exerciseRestTime
+        let totalRoundTime = roundTime * rounds
+        let roundRestTime = max(0, rounds - 1) * restBetweenRounds
+        return totalRoundTime + roundRestTime
     }
 
     private var formattedTotalDuration: String {
@@ -40,65 +56,24 @@ struct WorkoutBuilderView: View {
 
     var body: some View {
         NavigationView {
-            Form {
-                // Workout Name Section
-                Section(header: Text("Workout Details")) {
-                    TextField("Workout Name", text: $workoutName)
-                        .textInputAutocapitalization(.words)
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Workout Name Section
+                    nameSection
 
-                    if !selectedExercises.isEmpty {
-                        HStack {
-                            Text("Total Duration")
-                            Spacer()
-                            Text(formattedTotalDuration)
-                                .foregroundColor(.secondary)
-                        }
-                    }
+                    // Timing Settings Section
+                    timingSection
+
+                    // Execution Mode Section
+                    executionModeSection
+
+                    // Exercises Section
+                    exercisesSection
+
+                    // Save Button
+                    saveSection
                 }
-
-                // Exercises Section
-                Section(header: exercisesSectionHeader) {
-                    if selectedExercises.isEmpty {
-                        Button(action: { showingExercisePicker = true }) {
-                            HStack {
-                                Image(systemName: "plus.circle.fill")
-                                    .foregroundColor(.accentColor)
-                                Text("Add Exercises")
-                                    .foregroundColor(.accentColor)
-                            }
-                        }
-                    } else {
-                        ForEach($selectedExercises) { $exercise in
-                            ExerciseRowView(exercise: $exercise, onDelete: {
-                                deleteExercise(exercise)
-                            })
-                        }
-                        .onMove(perform: moveExercises)
-                        .onDelete(perform: deleteExercises)
-
-                        Button(action: { showingExercisePicker = true }) {
-                            HStack {
-                                Image(systemName: "plus.circle.fill")
-                                    .foregroundColor(.accentColor)
-                                Text("Add More Exercises")
-                                    .foregroundColor(.accentColor)
-                            }
-                        }
-                    }
-                }
-
-                // Save Section
-                Section {
-                    Button(action: saveWorkout) {
-                        HStack {
-                            Spacer()
-                            Text(isEditing ? "Update Workout" : "Save Workout")
-                                .fontWeight(.semibold)
-                            Spacer()
-                        }
-                    }
-                    .disabled(workoutName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedExercises.isEmpty)
-                }
+                .padding()
             }
             .navigationTitle(isEditing ? "Edit Workout" : "New Workout")
             .navigationBarTitleDisplayMode(.inline)
@@ -111,11 +86,6 @@ struct WorkoutBuilderView: View {
                             dismiss()
                         }
                     }
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                        .disabled(selectedExercises.isEmpty)
                 }
             }
             .sheet(isPresented: $showingExercisePicker) {
@@ -136,18 +106,260 @@ struct WorkoutBuilderView: View {
         }
     }
 
-    // MARK: - Section Headers
+    // MARK: - Name Section
 
-    private var exercisesSectionHeader: some View {
-        HStack {
-            Text("Exercises")
-            Spacer()
-            if !selectedExercises.isEmpty {
-                Text("\(selectedExercises.count) exercises")
+    private var nameSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("WORKOUT NAME")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+
+            TextField("Enter workout name", text: $workoutName)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.words)
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+
+    // MARK: - Timing Section
+
+    private var timingSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("TIMING SETTINGS")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+
+            // Rounds
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Rounds", systemImage: "repeat")
+                    Spacer()
+                    Text("\(rounds)")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.accentColor)
+                }
+
+                HStack(spacing: 12) {
+                    ForEach([1, 2, 3, 4, 5], id: \.self) { num in
+                        Button(action: { rounds = num }) {
+                            Text("\(num)")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(rounds == num ? Color.accentColor : Color(.tertiarySystemBackground))
+                                .foregroundColor(rounds == num ? .white : .primary)
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+
+                Stepper("Custom: \(rounds)", value: $rounds, in: 1...20)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+            }
+
+            Divider()
+
+            // Time Per Exercise
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Time Per Exercise", systemImage: "timer")
+                    Spacer()
+                    Text("\(timePerExercise) sec")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.accentColor)
+                }
+
+                Slider(value: Binding(
+                    get: { Double(timePerExercise) },
+                    set: { timePerExercise = Int($0) }
+                ), in: 10...300, step: 5)
+
+                HStack {
+                    Text("10s")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("5 min")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Divider()
+
+            // Rest Between Exercises
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Rest Between Exercises", systemImage: "pause.circle")
+                    Spacer()
+                    Text(restBetweenExercises == 0 ? "None" : "\(restBetweenExercises) sec")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                }
+
+                Slider(value: Binding(
+                    get: { Double(restBetweenExercises) },
+                    set: { restBetweenExercises = Int($0) }
+                ), in: 0...120, step: 5)
+            }
+
+            Divider()
+
+            // Rest Between Rounds
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Rest Between Rounds", systemImage: "arrow.counterclockwise")
+                    Spacer()
+                    Text(restBetweenRounds == 0 ? "None" : "\(restBetweenRounds) sec")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                }
+
+                Slider(value: Binding(
+                    get: { Double(restBetweenRounds) },
+                    set: { restBetweenRounds = Int($0) }
+                ), in: 0...180, step: 15)
+            }
+
+            // Duration Summary
+            if !selectedExercises.isEmpty {
+                Divider()
+
+                HStack {
+                    Label("Estimated Duration", systemImage: "clock.fill")
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Text(formattedTotalDuration)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                }
             }
         }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+
+    // MARK: - Execution Mode Section
+
+    private var executionModeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("EXECUTION MODE")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 12) {
+                ExecutionModeButton(
+                    mode: .sequential,
+                    isSelected: executionMode == .sequential,
+                    action: { executionMode = .sequential }
+                )
+
+                ExecutionModeButton(
+                    mode: .roundRobin,
+                    isSelected: executionMode == .roundRobin,
+                    action: { executionMode = .roundRobin }
+                )
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+
+    // MARK: - Exercises Section
+
+    private var exercisesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("EXERCISES")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                if !selectedExercises.isEmpty {
+                    Text("\(selectedExercises.count) exercises")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if selectedExercises.isEmpty {
+                Button(action: { showingExercisePicker = true }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                        Text("Add Exercises")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.accentColor.opacity(0.1))
+                    .foregroundColor(.accentColor)
+                    .cornerRadius(12)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(selectedExercises.enumerated()), id: \.element.id) { index, exercise in
+                        SimpleExerciseRow(
+                            index: index + 1,
+                            exercise: exercise,
+                            onDelete: { deleteExercise(at: index) }
+                        )
+
+                        if index < selectedExercises.count - 1 {
+                            Divider()
+                                .padding(.leading, 44)
+                        }
+                    }
+                }
+                .background(Color(.tertiarySystemBackground))
+                .cornerRadius(12)
+
+                Button(action: { showingExercisePicker = true }) {
+                    HStack {
+                        Image(systemName: "plus.circle")
+                        Text("Add More")
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.accentColor)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+
+    // MARK: - Save Section
+
+    private var saveSection: some View {
+        Button(action: saveWorkout) {
+            HStack {
+                Image(systemName: isEditing ? "checkmark.circle.fill" : "plus.circle.fill")
+                Text(isEditing ? "Update Workout" : "Save Workout")
+                    .fontWeight(.semibold)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(canSave ? Color.accentColor : Color.gray)
+            .foregroundColor(.white)
+            .cornerRadius(12)
+        }
+        .disabled(!canSave)
+    }
+
+    private var canSave: Bool {
+        !workoutName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !selectedExercises.isEmpty
     }
 
     // MARK: - Actions
@@ -156,26 +368,20 @@ struct WorkoutBuilderView: View {
         guard let workout = existingWorkout else { return }
 
         workoutName = workout.wrappedName
+        rounds = Int(workout.rounds)
+        timePerExercise = Int(workout.timePerExercise)
+        restBetweenExercises = Int(workout.restBetweenExercises)
+        restBetweenRounds = Int(workout.restBetweenRounds)
+        executionMode = workout.isRoundRobin ? .roundRobin : .sequential
 
         selectedExercises = workout.workoutExercisesArray.compactMap { workoutExercise in
             guard let exercise = workoutExercise.exercise else { return nil }
-            return SelectedExercise(
-                exercise: exercise,
-                duration: Int(workoutExercise.duration)
-            )
+            return SelectedExercise(exercise: exercise)
         }
     }
 
-    private func moveExercises(from source: IndexSet, to destination: Int) {
-        selectedExercises.move(fromOffsets: source, toOffset: destination)
-    }
-
-    private func deleteExercises(at offsets: IndexSet) {
-        selectedExercises.remove(atOffsets: offsets)
-    }
-
-    private func deleteExercise(_ exercise: SelectedExercise) {
-        if let index = selectedExercises.firstIndex(where: { $0.id == exercise.id }) {
+    private func deleteExercise(at index: Int) {
+        withAnimation {
             selectedExercises.remove(at: index)
         }
     }
@@ -199,12 +405,17 @@ struct WorkoutBuilderView: View {
             }
 
             workout.name = trimmedName
+            workout.rounds = Int16(rounds)
+            workout.timePerExercise = Int32(timePerExercise)
+            workout.restBetweenExercises = Int32(restBetweenExercises)
+            workout.restBetweenRounds = Int32(restBetweenRounds)
+            workout.executionMode = executionMode.rawValue
 
             // Create new workout exercises
             for (index, selectedExercise) in selectedExercises.enumerated() {
                 let workoutExercise = WorkoutExercise(context: viewContext)
                 workoutExercise.id = UUID()
-                workoutExercise.duration = Int32(selectedExercise.duration)
+                workoutExercise.duration = Int32(timePerExercise)
                 workoutExercise.orderIndex = Int16(index)
                 workoutExercise.exercise = selectedExercise.exercise
                 workoutExercise.workout = workout
@@ -221,16 +432,94 @@ struct WorkoutBuilderView: View {
     }
 }
 
+// MARK: - Execution Mode Enum
+
+enum ExecutionMode: String, CaseIterable {
+    case sequential = "sequential"
+    case roundRobin = "roundRobin"
+
+    var title: String {
+        switch self {
+        case .sequential:
+            return "Sequential"
+        case .roundRobin:
+            return "Round Robin"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .sequential:
+            return "Complete all rounds of each exercise before moving to the next"
+        case .roundRobin:
+            return "Cycle through all exercises once per round"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .sequential:
+            return "arrow.down.circle"
+        case .roundRobin:
+            return "arrow.triangle.2.circlepath"
+        }
+    }
+}
+
+// MARK: - Execution Mode Button
+
+struct ExecutionModeButton: View {
+    let mode: ExecutionMode
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: mode.icon)
+                    .font(.title2)
+                    .foregroundColor(isSelected ? .white : .accentColor)
+                    .frame(width: 44, height: 44)
+                    .background(isSelected ? Color.accentColor : Color.accentColor.opacity(0.1))
+                    .cornerRadius(10)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(mode.title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text(mode.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.accentColor)
+                }
+            }
+            .padding()
+            .background(isSelected ? Color.accentColor.opacity(0.1) : Color(.tertiarySystemBackground))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Selected Exercise Model
 
 struct SelectedExercise: Identifiable, Equatable {
     let id = UUID()
     let exercise: Exercise
-    var duration: Int
 
-    init(exercise: Exercise, duration: Int = 30) {
+    init(exercise: Exercise) {
         self.exercise = exercise
-        self.duration = duration
     }
 
     static func == (lhs: SelectedExercise, rhs: SelectedExercise) -> Bool {
@@ -238,33 +527,28 @@ struct SelectedExercise: Identifiable, Equatable {
     }
 }
 
-// MARK: - Exercise Row View
+// MARK: - Simple Exercise Row
 
-struct ExerciseRowView: View {
-    @Binding var exercise: SelectedExercise
-    var onDelete: () -> Void
-
-    private var formattedDuration: String {
-        let minutes = exercise.duration / 60
-        let seconds = exercise.duration % 60
-        if minutes > 0 {
-            return "\(minutes):\(String(format: "%02d", seconds))"
-        } else {
-            return "\(seconds) sec"
-        }
-    }
+struct SimpleExerciseRow: View {
+    let index: Int
+    let exercise: SelectedExercise
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            // Drag Handle
-            Image(systemName: "line.3.horizontal")
-                .foregroundColor(.secondary)
+            // Number badge
+            Text("\(index)")
                 .font(.caption)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(Color.accentColor))
 
-            // Exercise Info
+            // Exercise info
             VStack(alignment: .leading, spacing: 2) {
                 Text(exercise.exercise.wrappedName)
-                    .font(.headline)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
                 Text(exercise.exercise.wrappedCategory)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -272,38 +556,15 @@ struct ExerciseRowView: View {
 
             Spacer()
 
-            // Duration Stepper
-            HStack(spacing: 8) {
-                Button(action: {
-                    if exercise.duration > 15 {
-                        exercise.duration -= 15
-                    }
-                }) {
-                    Image(systemName: "minus.circle.fill")
-                        .foregroundColor(exercise.duration <= 15 ? .gray : .accentColor)
-                }
-                .buttonStyle(.borderless)
-                .disabled(exercise.duration <= 15)
-
-                Text(formattedDuration)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .monospacedDigit()
-                    .frame(minWidth: 50)
-
-                Button(action: {
-                    if exercise.duration < 300 {
-                        exercise.duration += 15
-                    }
-                }) {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundColor(exercise.duration >= 300 ? .gray : .accentColor)
-                }
-                .buttonStyle(.borderless)
-                .disabled(exercise.duration >= 300)
+            // Delete button
+            Button(action: onDelete) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
             }
+            .buttonStyle(.plain)
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 }
 

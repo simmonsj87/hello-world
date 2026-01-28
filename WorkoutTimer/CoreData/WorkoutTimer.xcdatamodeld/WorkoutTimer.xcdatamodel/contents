@@ -11,13 +11,19 @@
         <attribute name="category" attributeType="String"/>
         <attribute name="createdDate" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isEnabled" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
         <attribute name="name" attributeType="String"/>
         <relationship name="workoutExercises" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="WorkoutExercise" inverseName="exercise" inverseEntity="WorkoutExercise"/>
     </entity>
     <entity name="Workout" representedClassName="Workout" syncable="YES">
         <attribute name="createdDate" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="executionMode" attributeType="String" defaultValueString="sequential"/>
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="name" attributeType="String"/>
+        <attribute name="restBetweenExercises" attributeType="Integer 32" defaultValueString="15" usesScalarValueType="YES"/>
+        <attribute name="restBetweenRounds" attributeType="Integer 32" defaultValueString="60" usesScalarValueType="YES"/>
+        <attribute name="rounds" attributeType="Integer 16" defaultValueString="1" usesScalarValueType="YES"/>
+        <attribute name="timePerExercise" attributeType="Integer 32" defaultValueString="30" usesScalarValueType="YES"/>
         <relationship name="workoutExercises" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="WorkoutExercise" inverseName="workout" inverseEntity="WorkoutExercise"/>
     </entity>
     <entity name="WorkoutExercise" representedClassName="WorkoutExercise" syncable="YES">

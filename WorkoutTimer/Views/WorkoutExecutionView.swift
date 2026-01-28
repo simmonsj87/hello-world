@@ -3,6 +3,7 @@
 //  WorkoutTimer
 //
 //  View for executing a saved workout with timer and voice announcements.
+//  Supports multiple rounds and sequential/round-robin execution modes.
 //
 
 import SwiftUI
@@ -22,7 +23,6 @@ struct WorkoutExecutionView: View {
     @StateObject private var executionManager: WorkoutExecutionManager
 
     @State private var showingEndConfirmation = false
-    @State private var restDuration: Int = 15
 
     init(workout: Workout) {
         self.workout = workout
@@ -35,31 +35,32 @@ struct WorkoutExecutionView: View {
             backgroundColor
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Header
-                headerSection
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Header
+                    headerSection
 
-                Spacer()
+                    Spacer(minLength: 20)
 
-                // Main Content
-                if executionManager.state == .completed {
-                    completedView
-                } else {
-                    mainContentView
+                    // Main Content
+                    if executionManager.state == .completed {
+                        completedView
+                    } else {
+                        mainContentView
+                    }
+
+                    Spacer(minLength: 20)
+
+                    // Controls
+                    controlsSection
                 }
-
-                Spacer()
-
-                // Controls
-                controlsSection
+                .padding()
             }
-            .padding()
         }
         .navigationBarHidden(true)
         .onAppear {
             setupNotifications()
             executionManager.voiceManager = voiceManager
-            executionManager.restDuration = restDuration
         }
         .onDisappear {
             executionManager.stop()
@@ -90,6 +91,8 @@ struct WorkoutExecutionView: View {
             return Color.green.opacity(0.15)
         case .resting:
             return Color.blue.opacity(0.15)
+        case .roundRest:
+            return Color.purple.opacity(0.15)
         case .paused:
             return Color.yellow.opacity(0.15)
         case .completed:
@@ -140,6 +143,11 @@ struct WorkoutExecutionView: View {
             // Progress indicator
             progressSection
 
+            // Round indicator (if multiple rounds)
+            if workout.rounds > 1 {
+                roundIndicator
+            }
+
             // Current exercise
             currentExerciseSection
 
@@ -185,6 +193,27 @@ struct WorkoutExecutionView: View {
         }
     }
 
+    // MARK: - Round Indicator
+
+    private var roundIndicator: some View {
+        HStack(spacing: 8) {
+            ForEach(1...Int(workout.rounds), id: \.self) { round in
+                Circle()
+                    .fill(round < executionManager.currentRound ? stateColor :
+                          round == executionManager.currentRound ? stateColor.opacity(0.8) :
+                          Color.gray.opacity(0.3))
+                    .frame(width: round == executionManager.currentRound ? 14 : 10,
+                           height: round == executionManager.currentRound ? 14 : 10)
+                    .overlay(
+                        Circle()
+                            .stroke(stateColor, lineWidth: round == executionManager.currentRound ? 2 : 0)
+                    )
+                    .animation(.easeInOut(duration: 0.3), value: executionManager.currentRound)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+
     // MARK: - Current Exercise Section
 
     private var currentExerciseSection: some View {
@@ -197,6 +226,14 @@ struct WorkoutExecutionView: View {
                 Text("Get ready for next exercise")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+            } else if executionManager.state == .roundRest {
+                Text("ROUND BREAK")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.purple)
+
+                Text("Round \(executionManager.currentRound) complete!")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             } else if let exercise = executionManager.currentExercise {
                 Text(exercise.exerciseName)
                     .font(.system(size: 42, weight: .bold, design: .rounded))
@@ -204,13 +241,26 @@ struct WorkoutExecutionView: View {
                     .minimumScaleFactor(0.5)
                     .lineLimit(2)
 
-                Text(exercise.exerciseCategory)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
+                HStack(spacing: 8) {
+                    Text(exercise.exerciseCategory)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(8)
+
+                    if workout.rounds > 1 {
+                        Text("Round \(executionManager.currentRound)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.accentColor)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .background(Color.accentColor.opacity(0.1))
+                            .cornerRadius(8)
+                    }
+                }
             }
         }
         .frame(minHeight: 100)
@@ -290,15 +340,15 @@ struct WorkoutExecutionView: View {
 
     private var controlsSection: some View {
         VStack(spacing: 16) {
-            // Rest duration picker (only when ready)
+            // Workout info (only when ready)
             if executionManager.state == .ready {
-                restDurationPicker
+                workoutInfoSection
             }
 
             // Main controls
             HStack(spacing: 20) {
                 // Skip button
-                if executionManager.state == .running || executionManager.state == .resting {
+                if executionManager.state == .running || executionManager.state == .resting || executionManager.state == .roundRest {
                     Button(action: { executionManager.skipExercise() }) {
                         VStack(spacing: 4) {
                             Image(systemName: "forward.end.fill")
@@ -317,7 +367,7 @@ struct WorkoutExecutionView: View {
                 mainActionButton
 
                 // Pause/Resume button
-                if executionManager.state == .running || executionManager.state == .paused || executionManager.state == .resting {
+                if executionManager.state == .running || executionManager.state == .paused || executionManager.state == .resting || executionManager.state == .roundRest {
                     Button(action: { executionManager.togglePause() }) {
                         VStack(spacing: 4) {
                             Image(systemName: executionManager.state == .paused ? "play.fill" : "pause.fill")
@@ -335,32 +385,55 @@ struct WorkoutExecutionView: View {
         }
     }
 
-    // MARK: - Rest Duration Picker
+    // MARK: - Workout Info Section
 
-    private var restDurationPicker: some View {
-        VStack(spacing: 8) {
-            Text("Rest between exercises")
-                .font(.caption)
-                .foregroundColor(.secondary)
+    private var workoutInfoSection: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 20) {
+                VStack(spacing: 4) {
+                    Text("\(workout.exerciseCount)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("Exercises")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
 
-            HStack(spacing: 12) {
-                ForEach([0, 15, 30, 45, 60], id: \.self) { duration in
-                    Button(action: {
-                        restDuration = duration
-                        executionManager.restDuration = duration
-                    }) {
-                        Text(duration == 0 ? "None" : "\(duration)s")
-                            .font(.subheadline)
-                            .fontWeight(restDuration == duration ? .bold : .regular)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(restDuration == duration ? Color.accentColor : Color(.secondarySystemBackground))
-                            .foregroundColor(restDuration == duration ? .white : .primary)
-                            .cornerRadius(8)
+                if workout.rounds > 1 {
+                    VStack(spacing: 4) {
+                        Text("\(workout.rounds)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Rounds")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                 }
+
+                VStack(spacing: 4) {
+                    Text("\(workout.timePerExercise)s")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("Per Exercise")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
+
+            // Execution mode badge
+            HStack(spacing: 4) {
+                Image(systemName: workout.isRoundRobin ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
+                Text(workout.isRoundRobin ? "Round Robin" : "Sequential")
+            }
+            .font(.caption)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(8)
         }
+        .padding()
+        .background(Color(.tertiarySystemBackground))
+        .cornerRadius(12)
     }
 
     // MARK: - Main Action Button
@@ -429,6 +502,9 @@ struct WorkoutExecutionView: View {
             VStack(spacing: 8) {
                 StatRow(title: "Total Time", value: executionManager.formattedElapsedTime)
                 StatRow(title: "Exercises", value: "\(executionManager.totalExercises)")
+                if workout.rounds > 1 {
+                    StatRow(title: "Rounds", value: "\(workout.rounds)")
+                }
                 StatRow(title: "Workout", value: workout.wrappedName)
             }
             .padding()
@@ -449,6 +525,8 @@ struct WorkoutExecutionView: View {
             return .green
         case .resting:
             return .blue
+        case .roundRest:
+            return .purple
         case .paused:
             return .yellow
         case .completed:
@@ -511,6 +589,11 @@ struct WorkoutExecutionView_Previews: PreviewProvider {
         workout.id = UUID()
         workout.name = "Preview Workout"
         workout.createdDate = Date()
+        workout.rounds = 3
+        workout.timePerExercise = 30
+        workout.restBetweenExercises = 15
+        workout.restBetweenRounds = 60
+        workout.executionMode = "roundRobin"
 
         return WorkoutExecutionView(workout: workout)
             .environment(\.managedObjectContext, context)

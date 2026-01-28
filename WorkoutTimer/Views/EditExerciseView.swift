@@ -1,14 +1,14 @@
 //
-//  AddExerciseView.swift
+//  EditExerciseView.swift
 //  WorkoutTimer
 //
-//  Form view to add new exercises with name and category selection.
+//  Form view to edit existing exercises.
 //
 
 import SwiftUI
 import CoreData
 
-struct AddExerciseView: View {
+struct EditExerciseView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
 
@@ -18,9 +18,13 @@ struct AddExerciseView: View {
     )
     private var categories: FetchedResults<Category>
 
-    @State private var exerciseName = ""
-    @State private var selectedCategory = "Upper Body"
+    @ObservedObject var exercise: Exercise
+
+    @State private var exerciseName: String = ""
+    @State private var selectedCategory: String = ""
+    @State private var isEnabled: Bool = true
     @State private var showingAddCategory = false
+    @State private var showingDeleteConfirmation = false
 
     private var categoryNames: [String] {
         categories.compactMap { $0.name }
@@ -28,6 +32,12 @@ struct AddExerciseView: View {
 
     private var isFormValid: Bool {
         !exerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasChanges: Bool {
+        exerciseName != exercise.wrappedName ||
+        selectedCategory != exercise.wrappedCategory ||
+        isEnabled != exercise.isEnabled
     }
 
     var body: some View {
@@ -42,6 +52,8 @@ struct AddExerciseView: View {
                             Text(category).tag(category)
                         }
                     }
+
+                    Toggle("Enabled", isOn: $isEnabled)
                 }
 
                 Section {
@@ -58,15 +70,25 @@ struct AddExerciseView: View {
                     Button(action: saveExercise) {
                         HStack {
                             Spacer()
-                            Text("Save Exercise")
+                            Text("Save Changes")
                                 .fontWeight(.semibold)
                             Spacer()
                         }
                     }
-                    .disabled(!isFormValid)
+                    .disabled(!isFormValid || !hasChanges)
+                }
+
+                Section {
+                    Button(role: .destructive, action: { showingDeleteConfirmation = true }) {
+                        HStack {
+                            Spacer()
+                            Label("Delete Exercise", systemImage: "trash")
+                            Spacer()
+                        }
+                    }
                 }
             }
-            .navigationTitle("Add Exercise")
+            .navigationTitle("Edit Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -80,17 +102,24 @@ struct AddExerciseView: View {
                     selectedCategory = newCategory
                 }
             }
-            .onAppear {
-                ensureDefaultCategories()
-                if let firstCategory = categoryNames.first {
-                    selectedCategory = firstCategory
+            .alert("Delete Exercise?", isPresented: $showingDeleteConfirmation) {
+                Button("Delete", role: .destructive) {
+                    deleteExercise()
                 }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This will permanently delete \"\(exercise.wrappedName)\". This action cannot be undone.")
+            }
+            .onAppear {
+                loadExerciseData()
             }
         }
     }
 
-    private func ensureDefaultCategories() {
-        Category.createDefaultCategories(in: viewContext)
+    private func loadExerciseData() {
+        exerciseName = exercise.wrappedName
+        selectedCategory = exercise.wrappedCategory
+        isEnabled = exercise.isEnabled
     }
 
     private func saveExercise() {
@@ -98,12 +127,9 @@ struct AddExerciseView: View {
         guard !trimmedName.isEmpty else { return }
 
         withAnimation {
-            let exercise = Exercise(context: viewContext)
-            exercise.id = UUID()
             exercise.name = trimmedName
             exercise.category = selectedCategory
-            exercise.createdDate = Date()
-            exercise.isEnabled = true
+            exercise.isEnabled = isEnabled
 
             do {
                 try viewContext.save()
@@ -114,11 +140,35 @@ struct AddExerciseView: View {
             }
         }
     }
+
+    private func deleteExercise() {
+        withAnimation {
+            viewContext.delete(exercise)
+
+            do {
+                try viewContext.save()
+                dismiss()
+            } catch {
+                let nsError = error as NSError
+                print("Error deleting exercise: \(nsError), \(nsError.userInfo)")
+            }
+        }
+    }
 }
 
-struct AddExerciseView_Previews: PreviewProvider {
+// MARK: - Preview
+
+struct EditExerciseView_Previews: PreviewProvider {
     static var previews: some View {
-        AddExerciseView()
-            .environment(\.managedObjectContext, PersistenceController.preview.viewContext)
+        let context = PersistenceController.preview.viewContext
+        let exercise = Exercise(context: context)
+        exercise.id = UUID()
+        exercise.name = "Push-ups"
+        exercise.category = "Upper Body"
+        exercise.isEnabled = true
+        exercise.createdDate = Date()
+
+        return EditExerciseView(exercise: exercise)
+            .environment(\.managedObjectContext, context)
     }
 }

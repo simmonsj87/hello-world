@@ -18,6 +18,7 @@ extension Exercise {
     @NSManaged public var name: String?
     @NSManaged public var category: String?
     @NSManaged public var createdDate: Date?
+    @NSManaged public var isEnabled: Bool
     @NSManaged public var workoutExercises: NSSet?
 
 }

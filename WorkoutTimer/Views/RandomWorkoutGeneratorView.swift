@@ -329,7 +329,7 @@ struct RandomWorkoutGeneratorView: View {
     // MARK: - Helper Methods
 
     private func exerciseCount(for category: String) -> Int {
-        allExercises.filter { $0.category == category }.count
+        allExercises.filter { $0.category == category && $0.isEnabled }.count
     }
 
     private func getRecentExerciseIds() -> Set<UUID> {
@@ -354,9 +354,10 @@ struct RandomWorkoutGeneratorView: View {
     private func generateWorkout() {
         let recentIds = getRecentExerciseIds()
 
-        // Build available exercises per category
+        // Build available exercises per category (only enabled exercises)
         var availableByCategory: [String: [Exercise]] = [:]
         for exercise in allExercises {
+            guard exercise.isEnabled else { continue }
             guard let id = exercise.id, !recentIds.contains(id) else { continue }
             let category = exercise.wrappedCategory
             availableByCategory[category, default: []].append(exercise)
@@ -526,9 +527,10 @@ struct CategoryStepperRow: View {
     let title: String
     @Binding var count: Int
     let available: Int
+    var maxLimit: Int = 50
 
     private var canIncrease: Bool {
-        count < min(10, available)
+        count < min(maxLimit, available)
     }
 
     var body: some View {
@@ -553,7 +555,7 @@ struct CategoryStepperRow: View {
                 Text("\(count)")
                     .font(.headline)
                     .monospacedDigit()
-                    .frame(minWidth: 24)
+                    .frame(minWidth: 30)
 
                 Button(action: { if canIncrease { count += 1 } }) {
                     Image(systemName: "plus.circle.fill")
