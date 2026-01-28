@@ -365,8 +365,17 @@ class WorkoutExecutionManager: ObservableObject {
                 startCountdown()
             }
         } else {
-            // All rounds of this exercise done, move to next exercise
-            moveToNextExercise()
+            // All rounds of this exercise done, check if more exercises
+            let isLastExercise = currentExerciseIndex >= exercises.count - 1
+            if isLastExercise {
+                completeWorkout()
+            } else if restBetweenExercises > 0 {
+                // Rest before moving to next exercise
+                startRestBeforeNextExercise()
+            } else {
+                // No rest, move directly to next exercise
+                advanceToNextExercise()
+            }
         }
     }
 
@@ -402,6 +411,32 @@ class WorkoutExecutionManager: ObservableObject {
         state = .resting
         timeRemaining = restBetweenExercises
         voiceManager?.announceRest(duration: restBetweenExercises)
+    }
+
+    private func startRestBeforeNextExercise() {
+        // Used in sequential mode when moving from one exercise to the next
+        state = .resting
+        timeRemaining = restBetweenExercises
+        let nextIndex = currentExerciseIndex + 1
+        if nextIndex < exercises.count {
+            let nextExercise = exercises[nextIndex]
+            voiceManager?.speak("Rest \(restBetweenExercises) seconds. Next: \(nextExercise.exerciseName)")
+        } else {
+            voiceManager?.announceRest(duration: restBetweenExercises)
+        }
+    }
+
+    private func advanceToNextExercise() {
+        // Move to next exercise and reset round counter (for sequential mode)
+        stopTimer()
+        currentExerciseIndex += 1
+        currentRound = 1
+
+        if currentExerciseIndex >= exercises.count {
+            completeWorkout()
+        } else {
+            startCountdown()
+        }
     }
 
     private func startRoundRest() {
