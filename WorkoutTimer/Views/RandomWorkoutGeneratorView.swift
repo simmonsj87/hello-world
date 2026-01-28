@@ -467,7 +467,7 @@ struct RandomWorkoutGeneratorView: View {
         let trimmedName = workoutName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
 
-        let workout = createWorkout(name: trimmedName)
+        _ = createWorkout(name: trimmedName)
 
         do {
             try viewContext.save()

@@ -30,7 +30,7 @@ struct TimerView: View {
                 .padding()
             }
             .navigationTitle("Interval Timer")
-            .onChange(of: configuration) { newConfig in
+            .onChange(of: configuration) { _, newConfig in
                 timerManager.configuration = newConfig
             }
         }
