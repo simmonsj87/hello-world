@@ -3,6 +3,7 @@
 //  WorkoutTimer
 //
 //  Manages workout execution state, timer, and voice announcements.
+//  Supports multiple rounds and sequential/round-robin execution modes.
 //
 
 import Foundation
@@ -15,13 +16,13 @@ class WorkoutExecutionManager: ObservableObject {
 
     @Published var state: WorkoutExecutionState = .ready
     @Published var currentExerciseIndex: Int = 0
+    @Published var currentRound: Int = 1
     @Published var timeRemaining: Int = 0
     @Published var elapsedTime: Int = 0
 
     // MARK: - Properties
 
     var voiceManager: VoiceAnnouncementManager?
-    var restDuration: Int = 15
 
     private let workout: Workout
     private let exercises: [WorkoutExercise]
@@ -29,8 +30,16 @@ class WorkoutExecutionManager: ObservableObject {
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
     private var backgroundDate: Date?
     private var countdownValue: Int = 3
+    private var previousState: WorkoutExecutionState = .ready
 
     private let countdownDuration = 3
+
+    // Workout settings (from Workout entity)
+    private var totalRounds: Int
+    private var timePerExercise: Int
+    private var restBetweenExercises: Int
+    private var restBetweenRounds: Int
+    private var isRoundRobin: Bool
 
     // MARK: - Computed Properties
 
@@ -44,14 +53,42 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     var nextExercise: WorkoutExercise? {
-        let nextIndex = currentExerciseIndex + 1
-        guard nextIndex < exercises.count else { return nil }
-        return exercises[nextIndex]
+        if isRoundRobin {
+            // In round-robin, next is the next exercise in sequence, or first exercise of next round
+            let nextIndex = currentExerciseIndex + 1
+            if nextIndex < exercises.count {
+                return exercises[nextIndex]
+            } else if currentRound < totalRounds {
+                return exercises.first
+            }
+            return nil
+        } else {
+            // In sequential, if we have more rounds of this exercise, same exercise
+            // Otherwise, next exercise
+            if currentRound < totalRounds {
+                return currentExercise
+            }
+            let nextIndex = currentExerciseIndex + 1
+            guard nextIndex < exercises.count else { return nil }
+            return exercises[nextIndex]
+        }
     }
 
     var workoutProgress: CGFloat {
-        guard totalExercises > 0 else { return 0 }
-        return CGFloat(currentExerciseIndex) / CGFloat(totalExercises)
+        guard totalExercises > 0, totalRounds > 0 else { return 0 }
+
+        let totalWorkUnits = totalExercises * totalRounds
+        var completedUnits: Int
+
+        if isRoundRobin {
+            // Round-robin: progress = (completedRounds * exercises) + currentExerciseIndex
+            completedUnits = (currentRound - 1) * totalExercises + currentExerciseIndex
+        } else {
+            // Sequential: progress = (completedExercises * rounds) + currentRound - 1
+            completedUnits = currentExerciseIndex * totalRounds + (currentRound - 1)
+        }
+
+        return CGFloat(completedUnits) / CGFloat(totalWorkUnits)
     }
 
     var exerciseProgress: CGFloat {
@@ -61,10 +98,11 @@ class WorkoutExecutionManager: ObservableObject {
             totalTime = countdownDuration
             return CGFloat(countdownValue) / CGFloat(totalTime)
         case .running:
-            guard let exercise = currentExercise else { return 0 }
-            totalTime = Int(exercise.duration)
+            totalTime = timePerExercise
         case .resting:
-            totalTime = restDuration
+            totalTime = restBetweenExercises
+        case .roundRest:
+            totalTime = restBetweenRounds
         default:
             return 1.0
         }
@@ -92,9 +130,14 @@ class WorkoutExecutionManager: ObservableObject {
         case .countdown:
             return "Get ready..."
         case .running:
+            if totalRounds > 1 {
+                return "Round \(currentRound) of \(totalRounds)"
+            }
             return "Working"
         case .resting:
-            return "Resting"
+            return "Rest"
+        case .roundRest:
+            return "Round break"
         case .paused:
             return "Paused"
         case .completed:
@@ -102,11 +145,22 @@ class WorkoutExecutionManager: ObservableObject {
         }
     }
 
+    var roundDisplayText: String {
+        "Round \(currentRound)/\(totalRounds)"
+    }
+
     // MARK: - Initialization
 
     init(workout: Workout) {
         self.workout = workout
         self.exercises = workout.workoutExercisesArray
+
+        // Load workout settings
+        self.totalRounds = max(1, Int(workout.rounds))
+        self.timePerExercise = max(5, Int(workout.timePerExercise))
+        self.restBetweenExercises = Int(workout.restBetweenExercises)
+        self.restBetweenRounds = Int(workout.restBetweenRounds)
+        self.isRoundRobin = workout.isRoundRobin
     }
 
     deinit {
@@ -122,6 +176,7 @@ class WorkoutExecutionManager: ObservableObject {
         }
 
         currentExerciseIndex = 0
+        currentRound = 1
         elapsedTime = 0
 
         startCountdown()
@@ -137,14 +192,14 @@ class WorkoutExecutionManager: ObservableObject {
     func togglePause() {
         if state == .paused {
             resume()
-        } else if state == .running || state == .resting {
+        } else if state == .running || state == .resting || state == .roundRest {
             pause()
         }
     }
 
     func skipExercise() {
         voiceManager?.stop()
-        moveToNextExercise()
+        moveToNext()
     }
 
     func enterBackground() {
@@ -179,7 +234,8 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     private func pause() {
-        guard state == .running || state == .resting else { return }
+        guard state == .running || state == .resting || state == .roundRest else { return }
+        previousState = state
         stopTimer()
         state = .paused
         voiceManager?.speak("Paused")
@@ -187,7 +243,7 @@ class WorkoutExecutionManager: ObservableObject {
 
     private func resume() {
         guard state == .paused else { return }
-        state = timeRemaining > 0 && currentExerciseIndex < exercises.count ? .running : .resting
+        state = previousState
         voiceManager?.speak("Resume")
         startTimer()
     }
@@ -200,7 +256,11 @@ class WorkoutExecutionManager: ObservableObject {
         timeRemaining = countdownDuration
 
         if let exercise = currentExercise {
-            voiceManager?.announceExercise(name: exercise.exerciseName, countdown: true)
+            var announcement = exercise.exerciseName
+            if totalRounds > 1 {
+                announcement += ", round \(currentRound)"
+            }
+            voiceManager?.announceExercise(name: announcement, countdown: true)
         }
 
         // Wait for voice countdown to finish, then start
@@ -210,13 +270,13 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     private func startExercise() {
-        guard let exercise = currentExercise else {
+        guard currentExercise != nil else {
             completeWorkout()
             return
         }
 
         state = .running
-        timeRemaining = Int(exercise.duration)
+        timeRemaining = timePerExercise
         startTimer()
     }
 
@@ -242,10 +302,23 @@ class WorkoutExecutionManager: ObservableObject {
     private func handleTimeWarnings() {
         // Announce upcoming transition
         if timeRemaining == 5 {
-            if state == .running, let next = nextExercise {
-                voiceManager?.speak("Next up: \(next.exerciseName)")
-            } else if state == .running && nextExercise == nil {
-                voiceManager?.speak("Last exercise, almost there!")
+            switch state {
+            case .running:
+                if let next = nextExercise {
+                    if next.exercise?.id == currentExercise?.exercise?.id && totalRounds > 1 {
+                        voiceManager?.speak("Round \(currentRound + 1) coming up")
+                    } else {
+                        voiceManager?.speak("Next up: \(next.exerciseName)")
+                    }
+                } else {
+                    voiceManager?.speak("Last exercise, almost there!")
+                }
+            case .resting, .roundRest:
+                if let next = currentExercise {
+                    voiceManager?.speak("Get ready for \(next.exerciseName)")
+                }
+            default:
+                break
             }
         }
 
@@ -258,15 +331,13 @@ class WorkoutExecutionManager: ObservableObject {
     private func handleTimeExpired() {
         switch state {
         case .running:
-            // Exercise complete, start rest or move to next
-            if restDuration > 0 && currentExerciseIndex < exercises.count - 1 {
-                startRest()
-            } else {
-                moveToNextExercise()
-            }
+            handleExerciseComplete()
 
         case .resting:
             moveToNextExercise()
+
+        case .roundRest:
+            startNextRound()
 
         default:
             break
@@ -275,19 +346,142 @@ class WorkoutExecutionManager: ObservableObject {
 
     // MARK: - Private Methods - State Transitions
 
+    private func handleExerciseComplete() {
+        if isRoundRobin {
+            handleRoundRobinExerciseComplete()
+        } else {
+            handleSequentialExerciseComplete()
+        }
+    }
+
+    private func handleSequentialExerciseComplete() {
+        // In sequential mode: do all rounds of one exercise, then move to next exercise
+        if currentRound < totalRounds {
+            // More rounds of this exercise
+            if restBetweenRounds > 0 {
+                startRoundRest()
+            } else {
+                currentRound += 1
+                startCountdown()
+            }
+        } else {
+            // All rounds of this exercise done, move to next exercise
+            moveToNextExercise()
+        }
+    }
+
+    private func handleRoundRobinExerciseComplete() {
+        // In round-robin mode: go through all exercises, then repeat for next round
+        let isLastExercise = currentExerciseIndex >= exercises.count - 1
+
+        if isLastExercise {
+            // End of round
+            if currentRound < totalRounds {
+                // More rounds to go
+                if restBetweenRounds > 0 {
+                    startRoundRest()
+                } else {
+                    startNextRound()
+                }
+            } else {
+                // All rounds complete
+                completeWorkout()
+            }
+        } else {
+            // More exercises in this round
+            if restBetweenExercises > 0 {
+                startRest()
+            } else {
+                currentExerciseIndex += 1
+                startCountdown()
+            }
+        }
+    }
+
     private func startRest() {
         state = .resting
-        timeRemaining = restDuration
-        voiceManager?.announceRest(duration: restDuration)
+        timeRemaining = restBetweenExercises
+        voiceManager?.announceRest(duration: restBetweenExercises)
+    }
+
+    private func startRoundRest() {
+        state = .roundRest
+        timeRemaining = restBetweenRounds
+        voiceManager?.speak("Round \(currentRound) complete. Rest for \(restBetweenRounds) seconds.")
+    }
+
+    private func startNextRound() {
+        currentRound += 1
+        if isRoundRobin {
+            currentExerciseIndex = 0
+        }
+        startCountdown()
+    }
+
+    private func moveToNext() {
+        stopTimer()
+
+        if isRoundRobin {
+            moveToNextInRoundRobin()
+        } else {
+            moveToNextInSequential()
+        }
     }
 
     private func moveToNextExercise() {
         stopTimer()
 
+        if isRoundRobin {
+            currentExerciseIndex += 1
+            if currentExerciseIndex >= exercises.count {
+                if currentRound < totalRounds {
+                    startNextRound()
+                } else {
+                    completeWorkout()
+                }
+            } else {
+                startCountdown()
+            }
+        } else {
+            // Sequential: move to next exercise, reset round
+            currentExerciseIndex += 1
+            currentRound = 1
+
+            if currentExerciseIndex >= exercises.count {
+                completeWorkout()
+            } else {
+                startCountdown()
+            }
+        }
+    }
+
+    private func moveToNextInSequential() {
+        if currentRound < totalRounds {
+            currentRound += 1
+            startCountdown()
+        } else {
+            currentExerciseIndex += 1
+            currentRound = 1
+
+            if currentExerciseIndex >= exercises.count {
+                completeWorkout()
+            } else {
+                startCountdown()
+            }
+        }
+    }
+
+    private func moveToNextInRoundRobin() {
         currentExerciseIndex += 1
 
         if currentExerciseIndex >= exercises.count {
-            completeWorkout()
+            if currentRound < totalRounds {
+                currentExerciseIndex = 0
+                currentRound += 1
+                startCountdown()
+            } else {
+                completeWorkout()
+            }
         } else {
             startCountdown()
         }
@@ -303,7 +497,7 @@ class WorkoutExecutionManager: ObservableObject {
     // MARK: - Private Methods - Background Handling
 
     private func handleBackgroundElapsed(_ elapsed: Int) {
-        guard state == .running || state == .resting else { return }
+        guard state == .running || state == .resting || state == .roundRest else { return }
 
         var remainingElapsed = elapsed
 
@@ -315,35 +509,98 @@ class WorkoutExecutionManager: ObservableObject {
             } else {
                 remainingElapsed -= timeRemaining
                 elapsedTime += timeRemaining
+                timeRemaining = 0
 
-                if state == .running {
-                    if restDuration > 0 && currentExerciseIndex < exercises.count - 1 {
-                        state = .resting
-                        timeRemaining = restDuration
+                // Simulate state transition
+                switch state {
+                case .running:
+                    if isRoundRobin {
+                        simulateRoundRobinTransition()
                     } else {
-                        currentExerciseIndex += 1
-                        if currentExerciseIndex >= exercises.count {
-                            state = .completed
-                            timeRemaining = 0
-                        } else {
-                            timeRemaining = Int(exercises[currentExerciseIndex].duration)
-                        }
+                        simulateSequentialTransition()
                     }
-                } else if state == .resting {
+                case .resting:
                     currentExerciseIndex += 1
                     if currentExerciseIndex >= exercises.count {
-                        state = .completed
-                        timeRemaining = 0
-                    } else {
-                        state = .running
-                        timeRemaining = Int(exercises[currentExerciseIndex].duration)
+                        if isRoundRobin && currentRound < totalRounds {
+                            currentExerciseIndex = 0
+                            currentRound += 1
+                        } else {
+                            state = .completed
+                        }
                     }
+                    if state != .completed {
+                        state = .running
+                        timeRemaining = timePerExercise
+                    }
+                case .roundRest:
+                    currentRound += 1
+                    if isRoundRobin {
+                        currentExerciseIndex = 0
+                    }
+                    state = .running
+                    timeRemaining = timePerExercise
+                default:
+                    break
                 }
             }
         }
 
         if state != .completed && state != .paused {
             startTimer()
+        }
+    }
+
+    private func simulateRoundRobinTransition() {
+        let isLastExercise = currentExerciseIndex >= exercises.count - 1
+
+        if isLastExercise {
+            if currentRound < totalRounds {
+                if restBetweenRounds > 0 {
+                    state = .roundRest
+                    timeRemaining = restBetweenRounds
+                } else {
+                    currentRound += 1
+                    currentExerciseIndex = 0
+                    timeRemaining = timePerExercise
+                }
+            } else {
+                state = .completed
+            }
+        } else {
+            if restBetweenExercises > 0 {
+                state = .resting
+                timeRemaining = restBetweenExercises
+            } else {
+                currentExerciseIndex += 1
+                timeRemaining = timePerExercise
+            }
+        }
+    }
+
+    private func simulateSequentialTransition() {
+        if currentRound < totalRounds {
+            if restBetweenRounds > 0 {
+                state = .roundRest
+                timeRemaining = restBetweenRounds
+            } else {
+                currentRound += 1
+                timeRemaining = timePerExercise
+            }
+        } else {
+            currentExerciseIndex += 1
+            currentRound = 1
+
+            if currentExerciseIndex >= exercises.count {
+                state = .completed
+            } else {
+                if restBetweenExercises > 0 {
+                    state = .resting
+                    timeRemaining = restBetweenExercises
+                } else {
+                    timeRemaining = timePerExercise
+                }
+            }
         }
     }
 
@@ -369,16 +626,16 @@ class WorkoutExecutionManager: ObservableObject {
         // Current exercise ending
         if state == .running {
             scheduleNotification(
-                identifier: "exercise-end-\(currentExerciseIndex)",
+                identifier: "exercise-end-\(currentExerciseIndex)-\(currentRound)",
                 title: "Exercise Complete",
                 body: "Rest period starting",
                 timeInterval: TimeInterval(timeOffset)
             )
 
-            if restDuration > 0 {
-                timeOffset += restDuration
+            if restBetweenExercises > 0 {
+                timeOffset += restBetweenExercises
                 scheduleNotification(
-                    identifier: "rest-end-\(currentExerciseIndex)",
+                    identifier: "rest-end-\(currentExerciseIndex)-\(currentRound)",
                     title: "Rest Complete",
                     body: nextExercise?.exerciseName ?? "Next exercise",
                     timeInterval: TimeInterval(timeOffset)

@@ -2,7 +2,7 @@
 //  ExerciseListView.swift
 //  WorkoutTimer
 //
-//  List view showing all exercises grouped by category with search functionality.
+//  List view showing all exercises grouped by category with search, edit, delete, and enable/disable functionality.
 //
 
 import SwiftUI
@@ -22,16 +22,26 @@ struct ExerciseListView: View {
 
     @State private var searchText = ""
     @State private var showingAddExercise = false
+    @State private var exerciseToEdit: Exercise?
+    @State private var showDisabled = true
 
     private var filteredExercises: [Exercise] {
-        if searchText.isEmpty {
-            return Array(exercises)
-        } else {
-            return exercises.filter { exercise in
+        var result = Array(exercises)
+
+        // Filter by enabled status if not showing disabled
+        if !showDisabled {
+            result = result.filter { $0.isEnabled }
+        }
+
+        // Filter by search text
+        if !searchText.isEmpty {
+            result = result.filter { exercise in
                 exercise.wrappedName.localizedCaseInsensitiveContains(searchText) ||
                 exercise.wrappedCategory.localizedCaseInsensitiveContains(searchText)
             }
         }
+
+        return result
     }
 
     private var groupedExercises: [String: [Exercise]] {
@@ -46,51 +56,24 @@ struct ExerciseListView: View {
         NavigationView {
             Group {
                 if exercises.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "figure.run")
-                            .font(.system(size: 60))
-                            .foregroundColor(.secondary)
-                        Text("No Exercises Yet")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        Text("Tap the + button to add your first exercise")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
+                    emptyStateView
                 } else if filteredExercises.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 60))
-                            .foregroundColor(.secondary)
-                        Text("No Results")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        Text("No exercises match \"\(searchText)\"")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding()
+                    noResultsView
                 } else {
-                    List {
-                        ForEach(sortedCategories, id: \.self) { category in
-                            Section(header: CategoryHeader(category: category)) {
-                                ForEach(groupedExercises[category] ?? []) { exercise in
-                                    ExerciseRow(exercise: exercise)
-                                }
-                                .onDelete { indexSet in
-                                    deleteExercises(at: indexSet, in: category)
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.insetGrouped)
+                    exerciseListContent
                 }
             }
             .navigationTitle("Exercises")
             .searchable(text: $searchText, prompt: "Search exercises")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Menu {
+                        Toggle("Show Disabled", isOn: $showDisabled)
+                    } label: {
+                        Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                }
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingAddExercise = true }) {
                         Label("Add Exercise", systemImage: "plus")
@@ -100,23 +83,120 @@ struct ExerciseListView: View {
             .sheet(isPresented: $showingAddExercise) {
                 AddExerciseView()
             }
+            .sheet(item: $exerciseToEdit) { exercise in
+                EditExerciseView(exercise: exercise)
+            }
         }
     }
 
-    private func deleteExercises(at offsets: IndexSet, in category: String) {
-        withAnimation {
-            let exercisesInCategory = groupedExercises[category] ?? []
-            offsets.map { exercisesInCategory[$0] }.forEach(viewContext.delete)
+    // MARK: - Empty State View
 
+    private var emptyStateView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                Spacer(minLength: 60)
+                Image(systemName: "figure.run")
+                    .font(.system(size: 60))
+                    .foregroundColor(.secondary)
+                Text("No Exercises Yet")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text("Tap the + button to add your first exercise")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                Spacer()
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: - No Results View
+
+    private var noResultsView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                Spacer(minLength: 60)
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 60))
+                    .foregroundColor(.secondary)
+                Text("No Results")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text("No exercises match \"\(searchText)\"")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: - Exercise List Content
+
+    private var exerciseListContent: some View {
+        List {
+            ForEach(sortedCategories, id: \.self) { category in
+                Section(header: CategoryHeader(category: category)) {
+                    ForEach(groupedExercises[category] ?? []) { exercise in
+                        ExerciseRow(
+                            exercise: exercise,
+                            onToggleEnabled: { toggleEnabled(exercise) },
+                            onEdit: { exerciseToEdit = exercise }
+                        )
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                deleteExercise(exercise)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                toggleEnabled(exercise)
+                            } label: {
+                                Label(
+                                    exercise.isEnabled ? "Disable" : "Enable",
+                                    systemImage: exercise.isEnabled ? "eye.slash" : "eye"
+                                )
+                            }
+                            .tint(exercise.isEnabled ? .orange : .green)
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    // MARK: - Actions
+
+    private func toggleEnabled(_ exercise: Exercise) {
+        withAnimation {
+            exercise.isEnabled.toggle()
             do {
                 try viewContext.save()
             } catch {
-                let nsError = error as NSError
-                print("Error deleting exercise: \(nsError), \(nsError.userInfo)")
+                print("Error toggling exercise: \(error)")
+            }
+        }
+    }
+
+    private func deleteExercise(_ exercise: Exercise) {
+        withAnimation {
+            viewContext.delete(exercise)
+            do {
+                try viewContext.save()
+            } catch {
+                print("Error deleting exercise: \(error)")
             }
         }
     }
 }
+
+// MARK: - Category Header
 
 struct CategoryHeader: View {
     let category: String
@@ -147,20 +227,54 @@ struct CategoryHeader: View {
     }
 }
 
+// MARK: - Exercise Row
+
 struct ExerciseRow: View {
-    let exercise: Exercise
+    @ObservedObject var exercise: Exercise
+    let onToggleEnabled: () -> Void
+    let onEdit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(exercise.wrappedName)
-                .font(.headline)
-            if let date = exercise.createdDate {
-                Text("Added \(date, formatter: dateFormatter)")
+        Button(action: onEdit) {
+            HStack(spacing: 12) {
+                // Enabled indicator
+                Circle()
+                    .fill(exercise.isEnabled ? Color.green : Color.gray)
+                    .frame(width: 10, height: 10)
+
+                // Exercise info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(exercise.wrappedName)
+                        .font(.headline)
+                        .foregroundColor(exercise.isEnabled ? .primary : .secondary)
+                    if let date = exercise.createdDate {
+                        Text("Added \(date, formatter: dateFormatter)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                // Disabled badge
+                if !exercise.isEnabled {
+                    Text("Disabled")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.gray.opacity(0.2))
+                        .foregroundColor(.secondary)
+                        .cornerRadius(4)
+                }
+
+                Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 4)
+        .buttonStyle(.plain)
     }
 }
 
@@ -170,6 +284,8 @@ private let dateFormatter: DateFormatter = {
     formatter.timeStyle = .none
     return formatter
 }()
+
+// MARK: - Preview
 
 struct ExerciseListView_Previews: PreviewProvider {
     static var previews: some View {

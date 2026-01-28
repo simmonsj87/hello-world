@@ -17,6 +17,11 @@ extension Workout {
     @NSManaged public var id: UUID?
     @NSManaged public var name: String?
     @NSManaged public var createdDate: Date?
+    @NSManaged public var rounds: Int16
+    @NSManaged public var timePerExercise: Int32
+    @NSManaged public var restBetweenExercises: Int32
+    @NSManaged public var restBetweenRounds: Int32
+    @NSManaged public var executionMode: String?
     @NSManaged public var workoutExercises: NSSet?
 
 }
@@ -80,5 +85,33 @@ extension Workout {
     /// Number of exercises in the workout.
     public var exerciseCount: Int {
         workoutExercisesArray.count
+    }
+
+    /// Unwrapped execution mode with a default value.
+    public var wrappedExecutionMode: String {
+        executionMode ?? "sequential"
+    }
+
+    /// Whether this workout uses round-robin execution.
+    public var isRoundRobin: Bool {
+        wrappedExecutionMode == "roundRobin"
+    }
+
+    /// Calculated total workout duration based on settings.
+    public var calculatedTotalDuration: Int32 {
+        let exerciseTime = timePerExercise * Int32(workoutExercisesArray.count)
+        let restTime = restBetweenExercises * Int32(max(0, workoutExercisesArray.count - 1))
+        let roundTime = exerciseTime + restTime
+        let totalRoundTime = roundTime * Int32(rounds)
+        let roundRestTime = restBetweenRounds * Int32(max(0, Int(rounds) - 1))
+        return totalRoundTime + roundRestTime
+    }
+
+    /// Formatted calculated duration string.
+    public var formattedCalculatedDuration: String {
+        let total = calculatedTotalDuration
+        let minutes = total / 60
+        let seconds = total % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }

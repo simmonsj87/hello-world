@@ -12,6 +12,7 @@ enum WorkoutExecutionState: Equatable {
     case countdown
     case running
     case resting
+    case roundRest
     case paused
     case completed
 }

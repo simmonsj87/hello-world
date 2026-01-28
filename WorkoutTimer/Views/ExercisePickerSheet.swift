@@ -36,6 +36,9 @@ struct ExercisePickerSheet: View {
     private var filteredExercises: [Exercise] {
         var result = Array(exercises)
 
+        // Only show enabled exercises
+        result = result.filter { $0.isEnabled }
+
         // Filter by category
         if let category = selectedCategory {
             result = result.filter { $0.category == category }
