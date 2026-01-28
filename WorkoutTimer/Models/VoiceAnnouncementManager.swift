@@ -155,6 +155,67 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         speak("Congratulations! Workout complete. Great job!")
     }
 
+    /// Announces interval timer work starting with countdown
+    func announceIntervalWorkStart() {
+        guard isEnabled else { return }
+
+        stop()
+        announcementQueue = ["3", "2", "1", "Go!"]
+        processNextAnnouncement()
+    }
+
+    /// Announces interval timer work ending (going to rest) with countdown
+    func announceIntervalWorkEnd() {
+        guard isEnabled else { return }
+
+        stop()
+        announcementQueue = ["3", "2", "1", "Stop"]
+        processNextAnnouncement()
+    }
+
+    /// Announces interval timer rest ending (going to work) with countdown
+    func announceIntervalRestEnd() {
+        guard isEnabled else { return }
+
+        stop()
+        announcementQueue = ["3", "2", "1", "Go!"]
+        processNextAnnouncement()
+    }
+
+    /// Plays a bell/ding sound for transitions
+    func playBell() {
+        guard isEnabled else { return }
+        // Use a short spoken "ding" sound
+        let utterance = AVSpeechUtterance(string: "ding ding")
+        utterance.voice = currentVoice ?? AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = 0.6
+        utterance.volume = volume
+        utterance.pitchMultiplier = 1.3
+        speechSynthesizer.speak(utterance)
+    }
+
+    /// Announces round completion for interval timer
+    func announceIntervalRoundComplete(nextRound: Int, totalRounds: Int) {
+        guard isEnabled else { return }
+
+        if nextRound <= totalRounds {
+            speak("Round complete. Starting round \(nextRound) of \(totalRounds)")
+        } else {
+            announceWorkoutComplete()
+        }
+    }
+
+    /// Announces interval timer completion
+    func announceIntervalComplete() {
+        guard isEnabled else { return }
+
+        stop()
+        playBell()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.speak("Workout complete! Great job!")
+        }
+    }
+
     /// Announces time remaining (for warnings)
     func announceTimeWarning(seconds: Int) {
         guard isEnabled else { return }

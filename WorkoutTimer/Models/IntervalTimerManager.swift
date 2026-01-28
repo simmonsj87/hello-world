@@ -31,10 +31,14 @@ class IntervalTimerManager: ObservableObject {
     /// Timer configuration settings
     var configuration: TimerConfiguration
 
+    /// Voice announcement manager for audio feedback
+    var voiceManager: VoiceAnnouncementManager?
+
     // MARK: - Private Properties
 
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
+    private var hasAnnouncedCountdown = false
 
     // MARK: - Computed Properties
 
@@ -78,7 +82,16 @@ class IntervalTimerManager: ObservableObject {
         currentState = .working
         timeRemaining = configuration.workDuration
         isPaused = false
-        startTimer()
+        hasAnnouncedCountdown = false
+
+        // Announce start with countdown
+        voiceManager?.announceIntervalWorkStart()
+
+        // Delay timer start to allow countdown to finish
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { [weak self] in
+            guard let self = self, self.currentState == .working && !self.isPaused else { return }
+            self.startTimer()
+        }
     }
 
     /// Pause the timer
@@ -98,11 +111,13 @@ class IntervalTimerManager: ObservableObject {
     /// Reset the timer to initial state
     func reset() {
         stopTimer()
+        voiceManager?.stop()
         currentState = .idle
         currentCycle = 1
         currentRound = 1
         timeRemaining = configuration.workDuration
         isPaused = false
+        hasAnnouncedCountdown = false
     }
 
     /// Toggle between pause and resume
@@ -133,8 +148,28 @@ class IntervalTimerManager: ObservableObject {
 
         if timeRemaining > 0 {
             timeRemaining -= 1
+
+            // Announce countdown for transitions
+            if timeRemaining == 3 && !hasAnnouncedCountdown {
+                hasAnnouncedCountdown = true
+                announceUpcomingTransition()
+            }
         } else {
+            hasAnnouncedCountdown = false
             advanceToNextState()
+        }
+    }
+
+    private func announceUpcomingTransition() {
+        switch currentState {
+        case .working:
+            // About to finish work, announce "3, 2, 1, stop"
+            voiceManager?.announceIntervalWorkEnd()
+        case .resting, .roundRest:
+            // About to finish rest, announce "3, 2, 1, go"
+            voiceManager?.announceIntervalRestEnd()
+        default:
+            break
         }
     }
 
@@ -160,6 +195,9 @@ class IntervalTimerManager: ObservableObject {
     }
 
     private func handleWorkComplete() {
+        // Play bell for transition
+        voiceManager?.playBell()
+
         // Check if this was the last cycle of the last round
         if currentCycle >= configuration.cycles && currentRound >= configuration.rounds {
             completeWorkout()
@@ -172,6 +210,7 @@ class IntervalTimerManager: ObservableObject {
             if currentRound < configuration.rounds {
                 currentState = .roundRest
                 timeRemaining = configuration.restBetweenRounds
+                voiceManager?.announceIntervalRoundComplete(nextRound: currentRound + 1, totalRounds: configuration.rounds)
             }
         } else {
             // Move to rest between cycles
@@ -181,6 +220,9 @@ class IntervalTimerManager: ObservableObject {
     }
 
     private func handleRestComplete() {
+        // Play bell for transition back to work
+        voiceManager?.playBell()
+
         // Move to next cycle's work period
         currentCycle += 1
         currentState = .working
@@ -188,6 +230,9 @@ class IntervalTimerManager: ObservableObject {
     }
 
     private func handleRoundRestComplete() {
+        // Play bell for new round
+        voiceManager?.playBell()
+
         // Move to next round
         currentRound += 1
         currentCycle = 1
@@ -199,6 +244,7 @@ class IntervalTimerManager: ObservableObject {
         currentState = .completed
         timeRemaining = 0
         stopTimer()
+        voiceManager?.announceIntervalComplete()
     }
 
     deinit {
