@@ -9,6 +9,7 @@ import SwiftUI
 
 struct TimerView: View {
     @StateObject private var timerManager = IntervalTimerManager()
+    @StateObject private var voiceManager = VoiceAnnouncementManager()
     @State private var configuration = TimerConfiguration.default
 
     var body: some View {
@@ -30,6 +31,9 @@ struct TimerView: View {
                 .padding()
             }
             .navigationTitle("Interval Timer")
+            .onAppear {
+                timerManager.voiceManager = voiceManager
+            }
             .onChange(of: configuration) { _, newConfig in
                 timerManager.configuration = newConfig
             }
