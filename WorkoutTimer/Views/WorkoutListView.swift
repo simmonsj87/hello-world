@@ -21,6 +21,8 @@ struct WorkoutListView: View {
     @State private var showingRandomGenerator = false
     @State private var workoutToEdit: Workout?
     @State private var workoutToRun: Workout?
+    @State private var workoutToDelete: Workout?
+    @State private var showingDeleteConfirmation = false
 
     var body: some View {
         NavigationView {
@@ -60,6 +62,20 @@ struct WorkoutListView: View {
             .fullScreenCover(item: $workoutToRun) { workout in
                 WorkoutExecutionView(workout: workout)
                     .environment(\.managedObjectContext, viewContext)
+            }
+            .alert("Delete Workout?", isPresented: $showingDeleteConfirmation) {
+                Button("Delete", role: .destructive) {
+                    if let workout = workoutToDelete {
+                        deleteWorkout(workout)
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    workoutToDelete = nil
+                }
+            } message: {
+                if let workout = workoutToDelete {
+                    Text("Are you sure you want to delete \"\(workout.wrappedName)\"? This action cannot be undone.")
+                }
             }
         }
     }
@@ -115,17 +131,32 @@ struct WorkoutListView: View {
                     onStart: { workoutToRun = workout },
                     onEdit: { workoutToEdit = workout }
                 )
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        workoutToDelete = workout
+                        showingDeleteConfirmation = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    Button {
+                        workoutToEdit = workout
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .tint(.blue)
+                }
             }
-            .onDelete(perform: deleteWorkouts)
         }
         .listStyle(.insetGrouped)
     }
 
     // MARK: - Actions
 
-    private func deleteWorkouts(offsets: IndexSet) {
+    private func deleteWorkout(_ workout: Workout) {
         withAnimation {
-            offsets.map { workouts[$0] }.forEach(viewContext.delete)
+            viewContext.delete(workout)
 
             do {
                 try viewContext.save()
@@ -134,6 +165,7 @@ struct WorkoutListView: View {
                 print("Error deleting workout: \(nsError), \(nsError.userInfo)")
             }
         }
+        workoutToDelete = nil
     }
 }
 
