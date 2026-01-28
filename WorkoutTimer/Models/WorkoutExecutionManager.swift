@@ -51,10 +51,6 @@ class WorkoutExecutionManager: ObservableObject {
 
     var workoutProgress: CGFloat {
         guard totalExercises > 0 else { return 0 }
-        let exerciseProgress = CGFloat(currentExerciseIndex) / CGFloat(totalExercises)
-        let currentProgress = exerciseProgress + (1.0 - exerciseProgress) * (1.0 - exerciseProgress)
-
-        // More accurate: based on completed exercises
         return CGFloat(currentExerciseIndex) / CGFloat(totalExercises)
     }
 
@@ -367,8 +363,6 @@ class WorkoutExecutionManager: ObservableObject {
     // MARK: - Private Methods - Notifications
 
     private func scheduleNotifications() {
-        let center = UNUserNotificationCenter.current()
-
         // Calculate upcoming transitions
         var timeOffset = timeRemaining
 

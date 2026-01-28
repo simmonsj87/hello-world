@@ -64,7 +64,7 @@ struct WorkoutExecutionView: View {
         .onDisappear {
             executionManager.stop()
         }
-        .onChange(of: scenePhase) { phase in
+        .onChange(of: scenePhase) { _, phase in
             handleScenePhaseChange(phase)
         }
         .alert("End Workout?", isPresented: $showingEndConfirmation) {
