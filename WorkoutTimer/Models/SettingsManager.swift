@@ -288,6 +288,11 @@ struct WorkoutExport: Codable {
     let id: UUID
     let name: String
     let createdDate: Date
+    let rounds: Int
+    let timePerExercise: Int
+    let restBetweenExercises: Int
+    let restBetweenRounds: Int
+    let executionMode: String
     let exercises: [WorkoutExerciseExport]
 }
 

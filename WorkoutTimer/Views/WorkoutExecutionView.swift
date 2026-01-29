@@ -301,45 +301,49 @@ struct WorkoutExecutionView: View {
         }
     }
 
-    // MARK: - Current Exercise Section (Compact)
+    // MARK: - Current Exercise Section
 
     private var currentExerciseSectionCompact: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 8) {
             if executionManager.state == .resting {
                 Text("REST")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
                     .foregroundColor(.blue)
             } else if executionManager.state == .roundRest {
                 Text("ROUND BREAK")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.purple)
             } else if let exercise = executionManager.currentExercise {
                 Text(exercise.exerciseName)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
+                    .padding(.horizontal)
 
-                HStack(spacing: 6) {
+                HStack(spacing: 10) {
                     Text(exercise.exerciseCategory)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.secondary.opacity(0.1))
-                        .cornerRadius(6)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.secondary.opacity(0.15))
+                        .cornerRadius(8)
 
                     if workout.rounds > 1 {
-                        Text("Round \(executionManager.currentRound)")
-                            .font(.caption)
-                            .fontWeight(.medium)
+                        Text("Round \(executionManager.currentRound) of \(workout.rounds)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
                             .foregroundColor(.accentColor)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.accentColor.opacity(0.1))
+                            .cornerRadius(8)
                     }
                 }
             }
         }
-        .padding(.top, 8)
+        .padding(.top, 12)
     }
 
     // MARK: - Timer Section (Compact)
@@ -375,31 +379,37 @@ struct WorkoutExecutionView: View {
         .frame(width: 200, height: 200)
     }
 
-    // MARK: - Next Up Section (Compact)
+    // MARK: - Next Up Section
 
     private var nextUpSectionCompact: some View {
         Group {
             if let nextExercise = executionManager.nextExercise {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.right.circle")
+                VStack(spacing: 4) {
+                    Text("NEXT UP")
                         .font(.caption)
-                    Text("Next:")
-                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+
                     Text(nextExercise.exerciseName)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+
+                    Text(nextExercise.exerciseCategory)
                         .font(.caption)
-                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
                 }
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
                 .background(Color(.secondarySystemBackground))
-                .cornerRadius(8)
+                .cornerRadius(12)
             } else if executionManager.state != .completed && executionManager.state != .ready {
-                HStack(spacing: 4) {
+                HStack(spacing: 8) {
                     Image(systemName: "flag.checkered")
-                        .font(.caption)
-                    Text("Last exercise!")
-                        .font(.caption)
+                        .font(.title3)
+                    Text("Final Exercise!")
+                        .font(.headline)
+                        .fontWeight(.semibold)
                 }
                 .foregroundColor(.secondary)
             }

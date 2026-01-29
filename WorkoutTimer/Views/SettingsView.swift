@@ -8,6 +8,7 @@
 import SwiftUI
 import AVFoundation
 import CoreData
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -27,7 +28,12 @@ struct SettingsView: View {
     @State private var showingExportSheet = false
     @State private var showingImportPicker = false
     @State private var showingQuickStartSaved = false
+    @State private var showingExportOptions = false
+    @State private var showingImportSuccess = false
+    @State private var showingImportError = false
+    @State private var importErrorMessage = ""
     @State private var exportURL: URL?
+    @State private var exportedJSONString: String = ""
 
     var body: some View {
         NavigationView {
@@ -59,6 +65,29 @@ struct SettingsView: View {
             if let url = exportURL {
                 ShareSheet(items: [url])
             }
+        }
+        .sheet(isPresented: $showingExportOptions) {
+            ExportOptionsSheet(
+                jsonString: exportedJSONString,
+                fileURL: exportURL,
+                onShare: {
+                    showingExportOptions = false
+                    showingExportSheet = true
+                }
+            )
+        }
+        .sheet(isPresented: $showingImportPicker) {
+            DocumentPicker(onDocumentPicked: importFromFile)
+        }
+        .alert("Import Successful", isPresented: $showingImportSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Your data has been imported successfully.")
+        }
+        .alert("Import Failed", isPresented: $showingImportError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(importErrorMessage)
         }
     }
 
@@ -448,6 +477,11 @@ struct SettingsView: View {
                     id: id,
                     name: workout.wrappedName,
                     createdDate: workout.wrappedCreatedDate,
+                    rounds: Int(workout.rounds),
+                    timePerExercise: Int(workout.timePerExercise),
+                    restBetweenExercises: Int(workout.restBetweenExercises),
+                    restBetweenRounds: Int(workout.restBetweenRounds),
+                    executionMode: workout.wrappedExecutionMode,
                     exercises: workout.workoutExercisesArray.compactMap { we in
                         guard let exerciseId = we.exercise?.id else { return nil }
                         return WorkoutExerciseExport(
@@ -475,16 +509,110 @@ struct SettingsView: View {
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(exportData)
 
+            // Store JSON string for copy option
+            exportedJSONString = String(data: data, encoding: .utf8) ?? ""
+
             let tempDir = FileManager.default.temporaryDirectory
-            let fileName = "WorkoutTimer_Export_\(Date().formatted(.iso8601.year().month().day())).json"
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let fileName = "WorkoutTimer_Export_\(dateFormatter.string(from: Date())).json"
             let fileURL = tempDir.appendingPathComponent(fileName)
 
             try data.write(to: fileURL)
             exportURL = fileURL
-            showingExportSheet = true
+            showingExportOptions = true
         } catch {
             print("Export error: \(error)")
         }
+    }
+
+    private func importFromFile(_ url: URL) {
+        do {
+            // Start accessing security-scoped resource
+            guard url.startAccessingSecurityScopedResource() else {
+                importErrorMessage = "Could not access the selected file."
+                showingImportError = true
+                return
+            }
+            defer { url.stopAccessingSecurityScopedResource() }
+
+            let data = try Data(contentsOf: url)
+            try importData(from: data)
+            showingImportSuccess = true
+        } catch {
+            importErrorMessage = "Failed to import data: \(error.localizedDescription)"
+            showingImportError = true
+        }
+    }
+
+    private func importData(from data: Data) throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let importedData = try decoder.decode(AppDataExport.self, from: data)
+
+        // Create a mapping of old exercise IDs to new exercises
+        var exerciseMapping: [UUID: Exercise] = [:]
+
+        // Import categories first
+        for categoryExport in importedData.categories {
+            // Check if category already exists
+            let existingCategory = categories.first { $0.wrappedName == categoryExport.name }
+            if existingCategory == nil && !categoryExport.isDefault {
+                let category = Category(context: viewContext)
+                category.id = UUID()
+                category.name = categoryExport.name
+                category.isDefault = false
+                category.orderIndex = Int16(categoryExport.orderIndex)
+            }
+        }
+
+        // Import exercises
+        for exerciseExport in importedData.exercises {
+            // Check if exercise already exists by name
+            let existingExercise = exercises.first { $0.wrappedName == exerciseExport.name }
+            if let existing = existingExercise {
+                exerciseMapping[exerciseExport.id] = existing
+            } else {
+                let exercise = Exercise(context: viewContext)
+                exercise.id = UUID()
+                exercise.name = exerciseExport.name
+                exercise.category = exerciseExport.category
+                exercise.createdDate = exerciseExport.createdDate
+                exercise.isEnabled = true
+                exerciseMapping[exerciseExport.id] = exercise
+            }
+        }
+
+        // Import workouts
+        for workoutExport in importedData.workouts {
+            // Check if workout already exists by name
+            let existingWorkout = workouts.first { $0.wrappedName == workoutExport.name }
+            if existingWorkout == nil {
+                let workout = Workout(context: viewContext)
+                workout.id = UUID()
+                workout.name = workoutExport.name
+                workout.createdDate = workoutExport.createdDate
+                workout.rounds = Int16(workoutExport.rounds)
+                workout.timePerExercise = Int32(workoutExport.timePerExercise)
+                workout.restBetweenExercises = Int32(workoutExport.restBetweenExercises)
+                workout.restBetweenRounds = Int32(workoutExport.restBetweenRounds)
+                workout.executionMode = workoutExport.executionMode
+
+                // Add workout exercises
+                for workoutExerciseExport in workoutExport.exercises {
+                    if let exercise = exerciseMapping[workoutExerciseExport.exerciseId] {
+                        let workoutExercise = WorkoutExercise(context: viewContext)
+                        workoutExercise.id = UUID()
+                        workoutExercise.exercise = exercise
+                        workoutExercise.workout = workout
+                        workoutExercise.duration = Int32(workoutExerciseExport.duration)
+                        workoutExercise.orderIndex = Int16(workoutExerciseExport.orderIndex)
+                    }
+                }
+            }
+        }
+
+        try viewContext.save()
     }
 
     private func openFeedback() {
@@ -719,6 +847,140 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Export Options Sheet
+
+struct ExportOptionsSheet: View {
+    let jsonString: String
+    let fileURL: URL?
+    let onShare: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var showingCopied = false
+
+    var body: some View {
+        NavigationView {
+            List {
+                Section {
+                    // Share/Save to Files
+                    Button(action: {
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            onShare()
+                        }
+                    }) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Share or Save to Files")
+                                    .foregroundColor(.primary)
+                                Text("Send via AirDrop, Messages, Mail, or save to Files")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundColor(.blue)
+                        }
+                    }
+
+                    // Copy to Clipboard
+                    Button(action: copyToClipboard) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text("Copy to Clipboard")
+                                        .foregroundColor(.primary)
+                                    if showingCopied {
+                                        Text("Copied!")
+                                            .font(.caption)
+                                            .foregroundColor(.green)
+                                    }
+                                }
+                                Text("Copy JSON data to paste elsewhere")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "doc.on.doc")
+                                .foregroundColor(.green)
+                        }
+                    }
+                } header: {
+                    Text("Export Options")
+                } footer: {
+                    Text("Data is exported in JSON format, which can be imported on another device or shared with others.")
+                }
+
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Preview")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        ScrollView {
+                            Text(jsonString.prefix(2000) + (jsonString.count > 2000 ? "\n..." : ""))
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxHeight: 200)
+                    }
+                }
+            }
+            .navigationTitle("Export Data")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func copyToClipboard() {
+        UIPasteboard.general.string = jsonString
+        withAnimation {
+            showingCopied = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation {
+                showingCopied = false
+            }
+        }
+    }
+}
+
+// MARK: - Document Picker
+
+struct DocumentPicker: UIViewControllerRepresentable {
+    let onDocumentPicked: (URL) -> Void
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json])
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onDocumentPicked: onDocumentPicked)
+    }
+
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let onDocumentPicked: (URL) -> Void
+
+        init(onDocumentPicked: @escaping (URL) -> Void) {
+            self.onDocumentPicked = onDocumentPicked
+        }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { return }
+            onDocumentPicked(url)
+        }
+    }
 }
 
 // MARK: - Preview
