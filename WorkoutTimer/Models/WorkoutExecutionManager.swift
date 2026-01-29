@@ -262,9 +262,17 @@ class WorkoutExecutionManager: ObservableObject {
             }
 
             if let voiceManager = voiceManager {
-                voiceManager.announceExercise(name: announcement, countdown: true) { [weak self] in
-                    self?.startExercise()
-                }
+                voiceManager.announceExercise(
+                    name: announcement,
+                    countdown: true,
+                    onTick: { [weak self] seconds in
+                        self?.timeRemaining = seconds
+                        self?.countdownValue = seconds
+                    },
+                    completion: { [weak self] in
+                        self?.startExercise()
+                    }
+                )
             } else {
                 // No voice manager, use fixed delay fallback
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in

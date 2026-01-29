@@ -55,6 +55,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     private var isProcessingQueue = false
     private var countdownTimer: Timer?
     private var countdownCompletion: (() -> Void)?
+    private var countdownTickHandler: ((Int) -> Void)?
 
     private let settingsKey = "VoiceAnnouncementSettings"
 
@@ -125,7 +126,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     }
 
     /// Announces an exercise with optional countdown
-    func announceExercise(name: String, countdown: Bool = true, completion: (() -> Void)? = nil) {
+    func announceExercise(name: String, countdown: Bool = true, onTick: ((Int) -> Void)? = nil, completion: (() -> Void)? = nil) {
         guard isEnabled else {
             completion?()
             return
@@ -135,6 +136,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
 
         if countdown {
             countdownCompletion = completion
+            countdownTickHandler = onTick
             announceWithCountdown(exerciseName: name)
         } else {
             speak("Starting \(name)")
@@ -284,6 +286,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         announcementQueue.removeAll()
         isProcessingQueue = false
         countdownCompletion = nil
+        countdownTickHandler = nil
 
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
@@ -317,6 +320,10 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         // Shorter pause for countdown numbers
         if ["3", "2", "1"].contains(text) {
             utterance.postUtteranceDelay = 0.6
+            // Notify tick handler with the countdown number
+            if let number = Int(text) {
+                countdownTickHandler?(number)
+            }
         } else if text.contains("in") {
             utterance.postUtteranceDelay = 0.3
         }
