@@ -15,16 +15,18 @@ struct TimerView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     if timerManager.currentState == .idle {
+                        // Show total time and START button prominently at top
+                        idleHeaderSection
+
+                        // Configuration below
                         configurationSection
                     } else {
                         timerDisplaySection
-                    }
 
-                    controlButtonsSection
+                        controlButtonsSection
 
-                    if timerManager.currentState != .idle {
                         progressInfoSection
                     }
                 }
@@ -40,23 +42,59 @@ struct TimerView: View {
         }
     }
 
-    // MARK: - Configuration Section
+    // MARK: - Idle Header Section (Start Button at Top)
 
-    private var configurationSection: some View {
+    private var idleHeaderSection: some View {
         VStack(spacing: 16) {
-            // Total Duration Header
+            // Total Duration Display
             VStack(spacing: 4) {
                 Text("Total Workout Time")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 Text(configuration.formattedTotalDuration)
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .font(.system(size: 56, weight: .bold, design: .rounded))
                     .foregroundColor(.accentColor)
             }
-            .padding(.bottom, 8)
+
+            // Prominent START Button
+            Button(action: {
+                timerManager.configuration = configuration
+                timerManager.start()
+            }) {
+                HStack(spacing: 12) {
+                    Image(systemName: "play.fill")
+                        .font(.title2)
+                    Text("START")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+                .background(Color.green)
+                .cornerRadius(16)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(16)
+    }
+
+    // MARK: - Configuration Section
+
+    private var configurationSection: some View {
+        VStack(spacing: 12) {
+            // Section Header
+            HStack {
+                Text("SETTINGS")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
 
             // Configuration Steppers
-            Group {
+            VStack(spacing: 0) {
                 ConfigurationRow(
                     title: "Work Duration",
                     value: $configuration.workDuration,
@@ -64,6 +102,7 @@ struct TimerView: View {
                     step: 5,
                     unit: "sec"
                 )
+                Divider()
 
                 ConfigurationRow(
                     title: "Rest Duration",
@@ -72,6 +111,7 @@ struct TimerView: View {
                     step: 5,
                     unit: "sec"
                 )
+                Divider()
 
                 ConfigurationRow(
                     title: "Cycles per Round",
@@ -80,6 +120,7 @@ struct TimerView: View {
                     step: 1,
                     unit: ""
                 )
+                Divider()
 
                 ConfigurationRow(
                     title: "Rounds",
@@ -88,6 +129,7 @@ struct TimerView: View {
                     step: 1,
                     unit: ""
                 )
+                Divider()
 
                 ConfigurationRow(
                     title: "Rest Between Rounds",
@@ -97,11 +139,10 @@ struct TimerView: View {
                     unit: "sec"
                 )
             }
+            .padding()
+            .background(Color(.tertiarySystemBackground))
+            .cornerRadius(12)
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
     }
 
     // MARK: - Timer Display Section
