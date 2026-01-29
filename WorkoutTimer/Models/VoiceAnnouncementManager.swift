@@ -125,15 +125,20 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     }
 
     /// Announces an exercise with optional countdown
-    func announceExercise(name: String, countdown: Bool = true) {
-        guard isEnabled else { return }
+    func announceExercise(name: String, countdown: Bool = true, completion: (() -> Void)? = nil) {
+        guard isEnabled else {
+            completion?()
+            return
+        }
 
         stop()
 
         if countdown {
+            countdownCompletion = completion
             announceWithCountdown(exerciseName: name)
         } else {
             speak("Starting \(name)")
+            completion?()
         }
     }
 

@@ -260,12 +260,20 @@ class WorkoutExecutionManager: ObservableObject {
             if totalRounds > 1 {
                 announcement += ", round \(currentRound)"
             }
-            voiceManager?.announceExercise(name: announcement, countdown: true)
-        }
 
-        // Wait for voice countdown to finish, then start
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) { [weak self] in
-            self?.startExercise()
+            if let voiceManager = voiceManager {
+                voiceManager.announceExercise(name: announcement, countdown: true) { [weak self] in
+                    self?.startExercise()
+                }
+            } else {
+                // No voice manager, use fixed delay fallback
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    self?.startExercise()
+                }
+            }
+        } else {
+            // No exercise, start immediately
+            startExercise()
         }
     }
 
