@@ -286,7 +286,7 @@ struct WorkoutBuilderView: View {
                 Spacer()
 
                 if !selectedExercises.isEmpty {
-                    Text("\(selectedExercises.count) exercises")
+                    Text("\(selectedExercises.count) exercises • Drag to reorder")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -307,22 +307,24 @@ struct WorkoutBuilderView: View {
                     .cornerRadius(12)
                 }
             } else {
-                VStack(spacing: 0) {
+                List {
                     ForEach(Array(selectedExercises.enumerated()), id: \.element.id) { index, exercise in
                         SimpleExerciseRow(
                             index: index + 1,
                             exercise: exercise,
                             onDelete: { deleteExercise(at: index) }
                         )
-
-                        if index < selectedExercises.count - 1 {
-                            Divider()
-                                .padding(.leading, 44)
-                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color(.tertiarySystemBackground))
                     }
+                    .onMove(perform: moveExercise)
                 }
+                .listStyle(.plain)
+                .frame(minHeight: CGFloat(selectedExercises.count * 60))
                 .background(Color(.tertiarySystemBackground))
                 .cornerRadius(12)
+                .environment(\.editMode, .constant(.active))
 
                 Button(action: { showingExercisePicker = true }) {
                     HStack {
@@ -338,6 +340,10 @@ struct WorkoutBuilderView: View {
         .padding()
         .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
+    }
+
+    private func moveExercise(from source: IndexSet, to destination: Int) {
+        selectedExercises.move(fromOffsets: source, toOffset: destination)
     }
 
     // MARK: - Save Section

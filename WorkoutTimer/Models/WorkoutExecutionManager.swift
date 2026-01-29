@@ -316,30 +316,22 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     private func handleTimeWarnings() {
-        // Announce upcoming transition
+        // Announce upcoming transition at 5 seconds
         if timeRemaining == 5 {
             switch state {
             case .running:
-                if let next = nextExercise {
-                    if next.exercise?.id == currentExercise?.exercise?.id && totalRounds > 1 {
-                        voiceManager?.speak("Round \(currentRound + 1) coming up")
-                    } else {
-                        voiceManager?.speak("Next up: \(next.exerciseName)")
-                    }
-                } else {
-                    voiceManager?.speak("Last exercise, almost there!")
-                }
+                // Don't announce "next up" here - will be announced after "stop"
+                break
             case .resting, .roundRest:
-                if let next = currentExercise {
-                    voiceManager?.speak("Get ready for \(next.exerciseName)")
-                }
+                // Don't announce during rest - the startCountdown will handle it
+                break
             default:
                 break
             }
         }
 
-        // Countdown warnings
-        if timeRemaining <= 3 && timeRemaining > 0 {
+        // Countdown warnings only during running state (ending an exercise)
+        if state == .running && timeRemaining <= 3 && timeRemaining > 0 {
             voiceManager?.announceTimeWarning(seconds: timeRemaining)
         }
     }
@@ -347,6 +339,8 @@ class WorkoutExecutionManager: ObservableObject {
     private func handleTimeExpired() {
         switch state {
         case .running:
+            // Announce "Stop!" when exercise ends
+            voiceManager?.speak("Stop!")
             handleExerciseComplete()
 
         case .resting:
@@ -426,7 +420,14 @@ class WorkoutExecutionManager: ObservableObject {
     private func startRest() {
         state = .resting
         timeRemaining = restBetweenExercises
-        voiceManager?.announceRest(duration: restBetweenExercises)
+        // Announce rest and next exercise
+        let nextIndex = currentExerciseIndex + 1
+        if nextIndex < exercises.count {
+            let nextExercise = exercises[nextIndex]
+            voiceManager?.speak("Rest \(restBetweenExercises) seconds. Next up: \(nextExercise.exerciseName)")
+        } else {
+            voiceManager?.announceRest(duration: restBetweenExercises)
+        }
     }
 
     private func startRestBeforeNextExercise() {
@@ -458,7 +459,18 @@ class WorkoutExecutionManager: ObservableObject {
     private func startRoundRest() {
         state = .roundRest
         timeRemaining = restBetweenRounds
-        voiceManager?.speak("Round \(currentRound) complete. Rest for \(restBetweenRounds) seconds.")
+        // Announce round complete and what's coming next
+        if isRoundRobin {
+            // In round-robin, next round starts with first exercise
+            if let firstExercise = exercises.first {
+                voiceManager?.speak("Round \(currentRound) complete. Rest \(restBetweenRounds) seconds. Next up: \(firstExercise.exerciseName), round \(currentRound + 1)")
+            }
+        } else {
+            // In sequential, same exercise next round
+            if let exercise = currentExercise {
+                voiceManager?.speak("Round \(currentRound) complete. Rest \(restBetweenRounds) seconds. Next up: \(exercise.exerciseName), round \(currentRound + 1)")
+            }
+        }
     }
 
     private func startNextRound() {

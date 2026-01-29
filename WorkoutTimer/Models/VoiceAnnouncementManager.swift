@@ -31,8 +31,8 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         }
     }
 
-    /// Speech rate (0.3 - 0.7, default 0.5)
-    @Published var rate: Float = 0.5 {
+    /// Speech rate (0.3 - 0.7, default 0.48 for more natural sound)
+    @Published var rate: Float = 0.48 {
         didSet {
             rate = min(max(rate, 0.3), 0.7)
             saveSettings()
@@ -335,10 +335,22 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
 
     private func createUtterance(for text: String) -> AVSpeechUtterance {
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = currentVoice ?? AVSpeechSynthesisVoice(language: "en-US")
+        utterance.voice = currentVoice ?? findBestAvailableVoice() ?? AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = rate
         utterance.volume = volume
-        utterance.pitchMultiplier = 1.0
+
+        // Adjust pitch based on content for more dynamic sound
+        if ["Go!", "Stop!"].contains(text) {
+            utterance.pitchMultiplier = 1.1  // Slightly higher for emphasis
+        } else if ["3", "2", "1"].contains(text) {
+            utterance.pitchMultiplier = 1.05  // Slight emphasis for countdown
+        } else {
+            utterance.pitchMultiplier = 1.0
+        }
+
+        // Add slight pre-utterance delay for more natural pacing
+        utterance.preUtteranceDelay = 0.1
+
         return utterance
     }
 
@@ -358,10 +370,47 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
 
     private func updateVoice() {
         if selectedVoiceIdentifier.isEmpty {
-            currentVoice = AVSpeechSynthesisVoice(language: "en-US")
+            // Try to find the best available enhanced voice
+            currentVoice = findBestAvailableVoice()
         } else {
             currentVoice = AVSpeechSynthesisVoice(identifier: selectedVoiceIdentifier)
         }
+    }
+
+    /// Finds the best available voice, preferring enhanced/premium voices
+    private func findBestAvailableVoice() -> AVSpeechSynthesisVoice? {
+        let voices = AVSpeechSynthesisVoice.speechVoices()
+
+        // Filter for English voices
+        let englishVoices = voices.filter { $0.language.hasPrefix("en") }
+
+        // Prefer enhanced quality voices
+        let enhancedVoices = englishVoices.filter { $0.quality == .enhanced }
+
+        // Preferred voice names (premium/natural sounding voices on iOS)
+        let preferredNames = ["Samantha", "Alex", "Ava", "Tom", "Siri"]
+
+        // First try to find an enhanced voice with a preferred name
+        for name in preferredNames {
+            if let voice = enhancedVoices.first(where: { $0.name.contains(name) }) {
+                return voice
+            }
+        }
+
+        // Then try any enhanced English voice
+        if let enhancedVoice = enhancedVoices.first {
+            return enhancedVoice
+        }
+
+        // Fall back to any voice with a preferred name
+        for name in preferredNames {
+            if let voice = englishVoices.first(where: { $0.name.contains(name) }) {
+                return voice
+            }
+        }
+
+        // Final fallback to default US English
+        return AVSpeechSynthesisVoice(language: "en-US")
     }
 
     // MARK: - Settings Persistence
