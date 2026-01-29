@@ -57,6 +57,11 @@ class IntervalTimerManager: ObservableObject {
 
     /// Progress as a percentage (0.0 to 1.0)
     var progress: Double {
+        // Return 100% when completed
+        if currentState == .completed {
+            return 1.0
+        }
+
         guard totalCycles > 0 else { return 0 }
         return Double(totalCyclesCompleted) / Double(totalCycles)
     }
