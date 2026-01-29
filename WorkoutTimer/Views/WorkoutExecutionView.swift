@@ -127,42 +127,11 @@ struct WorkoutExecutionView: View {
         }
     }
 
-    // MARK: - Ready State View (Compact - No Scroll)
+    // MARK: - Ready State View
 
     private var readyStateView: some View {
-        VStack(spacing: 12) {
-            Spacer()
-
-            // Exercise name
-            if let exercise = executionManager.currentExercise {
-                Text(exercise.exerciseName)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-
-                HStack(spacing: 8) {
-                    Text(exercise.exerciseCategory)
-                        .font(.caption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.15))
-                        .cornerRadius(6)
-
-                    if workout.rounds > 1 {
-                        Text("Round 1")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.accentColor)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.accentColor.opacity(0.1))
-                            .cornerRadius(6)
-                    }
-                }
-            }
-
-            // Timer circle (smaller for ready state)
+        VStack(spacing: 16) {
+            // Timer circle at top
             ZStack {
                 Circle()
                     .stroke(lineWidth: 12)
@@ -174,9 +143,10 @@ struct WorkoutExecutionView: View {
                     .monospacedDigit()
                     .foregroundColor(.primary)
             }
-            .frame(width: 180, height: 180)
+            .frame(width: 160, height: 160)
+            .padding(.top, 8)
 
-            // START Button (prominent)
+            // START Button
             Button(action: { executionManager.start() }) {
                 HStack(spacing: 10) {
                     Image(systemName: "play.fill")
@@ -187,68 +157,122 @@ struct WorkoutExecutionView: View {
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
+                .padding(.vertical, 16)
                 .background(Color.green)
                 .cornerRadius(16)
             }
             .padding(.horizontal, 24)
 
-            Spacer()
-
-            // Compact workout info at bottom
-            compactWorkoutInfo
+            // Workout Summary Section
+            workoutSummarySection
                 .padding(.horizontal)
-                .padding(.bottom, 8)
+
+            // Exercise List Header
+            HStack {
+                Text("Exercises")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text("\(workout.exerciseCount)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal)
+
+            // Scrollable Exercise List
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(Array(workout.workoutExercisesArray.enumerated()), id: \.element.id) { index, workoutExercise in
+                        exerciseListRow(index: index, workoutExercise: workoutExercise)
+                    }
+                }
+                .padding(.horizontal)
+            }
         }
     }
 
-    // MARK: - Compact Workout Info
+    // MARK: - Workout Summary Section
 
-    private var compactWorkoutInfo: some View {
-        HStack(spacing: 16) {
-            VStack(spacing: 2) {
-                Text("\(workout.exerciseCount)")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                Text("Exercises")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+    private var workoutSummarySection: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 16) {
+                // Exercises count
+                SummaryItem(value: "\(workout.exerciseCount)", label: "Exercises")
+
+                // Rounds
+                SummaryItem(value: "\(workout.rounds)", label: "Rounds")
+
+                // Time per exercise
+                SummaryItem(value: "\(workout.timePerExercise)s", label: "Per Exercise")
+
+                // Total duration
+                SummaryItem(value: workout.formattedCalculatedDuration, label: "Total")
             }
 
-            if workout.rounds > 1 {
-                VStack(spacing: 2) {
-                    Text("\(workout.rounds)")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                    Text("Rounds")
-                        .font(.caption2)
+            HStack(spacing: 12) {
+                // Rest between exercises
+                if workout.restBetweenExercises > 0 {
+                    Label("\(workout.restBetweenExercises)s rest", systemImage: "pause.circle")
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
-            }
 
-            VStack(spacing: 2) {
-                Text("\(workout.timePerExercise)s")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                Text("Per Exercise")
-                    .font(.caption2)
+                // Rest between rounds
+                if workout.rounds > 1 && workout.restBetweenRounds > 0 {
+                    Label("\(workout.restBetweenRounds)s round break", systemImage: "arrow.clockwise")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                // Mode badge
+                HStack(spacing: 4) {
+                    Image(systemName: workout.isRoundRobin ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
+                        .font(.caption2)
+                    Text(workout.isRoundRobin ? "Round Robin" : "Sequential")
+                        .font(.caption2)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(.tertiarySystemBackground))
+                .cornerRadius(6)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+
+    // MARK: - Exercise List Row
+
+    private func exerciseListRow(index: Int, workoutExercise: WorkoutExercise) -> some View {
+        HStack(spacing: 12) {
+            // Order number
+            Text("\(index + 1)")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .frame(width: 28, height: 28)
+                .background(Color.accentColor)
+                .cornerRadius(14)
+
+            // Exercise details
+            VStack(alignment: .leading, spacing: 2) {
+                Text(workoutExercise.exerciseName)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(workoutExercise.exerciseCategory)
+                    .font(.caption)
                     .foregroundColor(.secondary)
             }
 
             Spacer()
-
-            // Mode badge
-            HStack(spacing: 4) {
-                Image(systemName: workout.isRoundRobin ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
-                    .font(.caption2)
-                Text(workout.isRoundRobin ? "Round Robin" : "Sequential")
-                    .font(.caption2)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(.tertiarySystemBackground))
-            .cornerRadius(6)
         }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(Color(.tertiarySystemBackground))
+        .cornerRadius(10)
     }
 
     // MARK: - Running State View
@@ -604,6 +628,25 @@ struct StatRow: View {
             Text(value)
                 .fontWeight(.semibold)
         }
+    }
+}
+
+// MARK: - Summary Item
+
+struct SummaryItem: View {
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.headline)
+                .fontWeight(.bold)
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
