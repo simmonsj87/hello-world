@@ -35,26 +35,20 @@ struct WorkoutExecutionView: View {
             backgroundColor
                 .ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Header
-                    headerSection
+            VStack(spacing: 0) {
+                // Header (compact)
+                headerSection
+                    .padding(.horizontal)
+                    .padding(.top, 8)
 
-                    Spacer(minLength: 20)
-
-                    // Main Content
-                    if executionManager.state == .completed {
-                        completedView
-                    } else {
-                        mainContentView
-                    }
-
-                    Spacer(minLength: 20)
-
-                    // Controls
-                    controlsSection
+                if executionManager.state == .completed {
+                    completedView
+                        .padding()
+                } else if executionManager.state == .ready {
+                    readyStateView
+                } else {
+                    runningStateView
                 }
-                .padding()
             }
         }
         .navigationBarHidden(true)
@@ -100,359 +94,378 @@ struct WorkoutExecutionView: View {
         }
     }
 
-    // MARK: - Header Section
+    // MARK: - Header Section (Compact)
 
     private var headerSection: some View {
         HStack {
             Button(action: { showingEndConfirmation = true }) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.title)
+                    .font(.title2)
                     .foregroundColor(.secondary)
             }
 
             Spacer()
 
-            VStack(spacing: 2) {
+            VStack(spacing: 0) {
                 Text(workout.wrappedName)
-                    .font(.headline)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
                 Text(executionManager.stateDisplayText)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundColor(stateColor)
             }
 
             Spacer()
 
-            // Elapsed time
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("Elapsed")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+            VStack(alignment: .trailing, spacing: 0) {
                 Text(executionManager.formattedElapsedTime)
                     .font(.caption)
                     .fontWeight(.medium)
                     .monospacedDigit()
             }
         }
-        .padding(.bottom)
     }
 
-    // MARK: - Main Content View
+    // MARK: - Ready State View (Compact - No Scroll)
 
-    private var mainContentView: some View {
-        VStack(spacing: 24) {
-            // Progress indicator
-            progressSection
+    private var readyStateView: some View {
+        VStack(spacing: 12) {
+            Spacer()
 
-            // Round indicator (if multiple rounds)
-            if workout.rounds > 1 {
-                roundIndicator
-            }
-
-            // Current exercise
-            currentExerciseSection
-
-            // Timer countdown
-            timerSection
-
-            // Next up preview
-            nextUpSection
-        }
-    }
-
-    // MARK: - Progress Section
-
-    private var progressSection: some View {
-        VStack(spacing: 8) {
-            // Progress text
-            HStack {
-                Text("Exercise \(executionManager.currentExerciseIndex + 1) of \(executionManager.totalExercises)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Text("\(Int(executionManager.workoutProgress * 100))%")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-            }
-
-            // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(height: 8)
-
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(stateColor)
-                        .frame(width: geometry.size.width * executionManager.workoutProgress, height: 8)
-                        .animation(.easeInOut(duration: 0.3), value: executionManager.workoutProgress)
-                }
-            }
-            .frame(height: 8)
-        }
-    }
-
-    // MARK: - Round Indicator
-
-    private var roundIndicator: some View {
-        HStack(spacing: 8) {
-            ForEach(1...Int(workout.rounds), id: \.self) { round in
-                Circle()
-                    .fill(round < executionManager.currentRound ? stateColor :
-                          round == executionManager.currentRound ? stateColor.opacity(0.8) :
-                          Color.gray.opacity(0.3))
-                    .frame(width: round == executionManager.currentRound ? 14 : 10,
-                           height: round == executionManager.currentRound ? 14 : 10)
-                    .overlay(
-                        Circle()
-                            .stroke(stateColor, lineWidth: round == executionManager.currentRound ? 2 : 0)
-                    )
-                    .animation(.easeInOut(duration: 0.3), value: executionManager.currentRound)
-            }
-        }
-        .padding(.vertical, 8)
-    }
-
-    // MARK: - Current Exercise Section
-
-    private var currentExerciseSection: some View {
-        VStack(spacing: 8) {
-            if executionManager.state == .resting {
-                Text("REST")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(.blue)
-
-                Text("Get ready for next exercise")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else if executionManager.state == .roundRest {
-                Text("ROUND BREAK")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(.purple)
-
-                Text("Round \(executionManager.currentRound) complete!")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else if let exercise = executionManager.currentExercise {
+            // Exercise name
+            if let exercise = executionManager.currentExercise {
                 Text(exercise.exerciseName)
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.5)
                     .lineLimit(2)
+                    .minimumScaleFactor(0.7)
 
                 HStack(spacing: 8) {
                     Text(exercise.exerciseCategory)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 12)
+                        .font(.caption)
+                        .padding(.horizontal, 10)
                         .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.15))
+                        .cornerRadius(6)
+
+                    if workout.rounds > 1 {
+                        Text("Round 1")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.accentColor)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.accentColor.opacity(0.1))
+                            .cornerRadius(6)
+                    }
+                }
+            }
+
+            // Timer circle (smaller for ready state)
+            ZStack {
+                Circle()
+                    .stroke(lineWidth: 12)
+                    .opacity(0.2)
+                    .foregroundColor(.gray)
+
+                Text(executionManager.formattedTimeRemaining)
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundColor(.primary)
+            }
+            .frame(width: 180, height: 180)
+
+            // START Button (prominent)
+            Button(action: { executionManager.start() }) {
+                HStack(spacing: 10) {
+                    Image(systemName: "play.fill")
+                        .font(.title2)
+                    Text("START")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .background(Color.green)
+                .cornerRadius(16)
+            }
+            .padding(.horizontal, 24)
+
+            Spacer()
+
+            // Compact workout info at bottom
+            compactWorkoutInfo
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+        }
+    }
+
+    // MARK: - Compact Workout Info
+
+    private var compactWorkoutInfo: some View {
+        HStack(spacing: 16) {
+            VStack(spacing: 2) {
+                Text("\(workout.exerciseCount)")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                Text("Exercises")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            if workout.rounds > 1 {
+                VStack(spacing: 2) {
+                    Text("\(workout.rounds)")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                    Text("Rounds")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            VStack(spacing: 2) {
+                Text("\(workout.timePerExercise)s")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                Text("Per Exercise")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            // Mode badge
+            HStack(spacing: 4) {
+                Image(systemName: workout.isRoundRobin ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
+                    .font(.caption2)
+                Text(workout.isRoundRobin ? "Round Robin" : "Sequential")
+                    .font(.caption2)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(.tertiarySystemBackground))
+            .cornerRadius(6)
+        }
+    }
+
+    // MARK: - Running State View
+
+    private var runningStateView: some View {
+        VStack(spacing: 8) {
+            // Current exercise (compact)
+            currentExerciseSectionCompact
+
+            // Timer circle
+            timerSectionCompact
+
+            // Next up
+            nextUpSectionCompact
+
+            Spacer()
+
+            // Progress bar at bottom
+            progressSectionBottom
+                .padding(.horizontal)
+
+            // Controls
+            controlsSection
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+        }
+    }
+
+    // MARK: - Current Exercise Section (Compact)
+
+    private var currentExerciseSectionCompact: some View {
+        VStack(spacing: 4) {
+            if executionManager.state == .resting {
+                Text("REST")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.blue)
+            } else if executionManager.state == .roundRest {
+                Text("ROUND BREAK")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.purple)
+            } else if let exercise = executionManager.currentExercise {
+                Text(exercise.exerciseName)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+
+                HStack(spacing: 6) {
+                    Text(exercise.exerciseCategory)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                         .background(Color.secondary.opacity(0.1))
-                        .cornerRadius(8)
+                        .cornerRadius(6)
 
                     if workout.rounds > 1 {
                         Text("Round \(executionManager.currentRound)")
-                            .font(.subheadline)
+                            .font(.caption)
                             .fontWeight(.medium)
                             .foregroundColor(.accentColor)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(Color.accentColor.opacity(0.1))
-                            .cornerRadius(8)
                     }
                 }
             }
         }
-        .frame(minHeight: 100)
+        .padding(.top, 8)
     }
 
-    // MARK: - Timer Section
+    // MARK: - Timer Section (Compact)
 
-    private var timerSection: some View {
+    private var timerSectionCompact: some View {
         ZStack {
-            // Background circle
             Circle()
-                .stroke(lineWidth: 16)
+                .stroke(lineWidth: 14)
                 .opacity(0.2)
                 .foregroundColor(stateColor)
 
-            // Progress circle
             Circle()
                 .trim(from: 0.0, to: executionManager.exerciseProgress)
-                .stroke(style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round))
+                .stroke(style: StrokeStyle(lineWidth: 14, lineCap: .round, lineJoin: .round))
                 .foregroundColor(stateColor)
                 .rotationEffect(Angle(degrees: -90))
                 .animation(.linear(duration: 0.5), value: executionManager.exerciseProgress)
 
-            // Time display
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 Text(executionManager.formattedTimeRemaining)
-                    .font(.system(size: 72, weight: .bold, design: .rounded))
+                    .font(.system(size: 56, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundColor(stateColor)
 
                 if executionManager.state == .countdown {
                     Text("GET READY")
-                        .font(.caption)
+                        .font(.caption2)
                         .fontWeight(.bold)
                         .foregroundColor(.orange)
                 }
             }
         }
-        .frame(width: 280, height: 280)
+        .frame(width: 200, height: 200)
     }
 
-    // MARK: - Next Up Section
+    // MARK: - Next Up Section (Compact)
 
-    private var nextUpSection: some View {
+    private var nextUpSectionCompact: some View {
         Group {
             if let nextExercise = executionManager.nextExercise {
-                HStack {
+                HStack(spacing: 4) {
                     Image(systemName: "arrow.right.circle")
-                        .foregroundColor(.secondary)
-                    Text("Next up:")
-                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    Text("Next:")
+                        .font(.caption)
                     Text(nextExercise.exerciseName)
+                        .font(.caption)
                         .fontWeight(.medium)
                 }
-                .font(.subheadline)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
                 .background(Color(.secondarySystemBackground))
-                .cornerRadius(12)
+                .cornerRadius(8)
             } else if executionManager.state != .completed && executionManager.state != .ready {
-                HStack {
+                HStack(spacing: 4) {
                     Image(systemName: "flag.checkered")
-                        .foregroundColor(.secondary)
+                        .font(.caption)
                     Text("Last exercise!")
-                        .foregroundColor(.secondary)
+                        .font(.caption)
                 }
-                .font(.subheadline)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(12)
+                .foregroundColor(.secondary)
             }
+        }
+    }
+
+    // MARK: - Progress Section (Bottom)
+
+    private var progressSectionBottom: some View {
+        VStack(spacing: 4) {
+            HStack {
+                Text("Exercise \(executionManager.currentExerciseIndex + 1)/\(executionManager.totalExercises)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(Int(executionManager.workoutProgress * 100))%")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 6)
+
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(stateColor)
+                        .frame(width: geometry.size.width * executionManager.workoutProgress, height: 6)
+                        .animation(.easeInOut(duration: 0.3), value: executionManager.workoutProgress)
+                }
+            }
+            .frame(height: 6)
         }
     }
 
     // MARK: - Controls Section
 
     private var controlsSection: some View {
-        VStack(spacing: 16) {
-            // Workout info (only when ready)
-            if executionManager.state == .ready {
-                workoutInfoSection
-            }
-
-            // Main controls
-            HStack(spacing: 20) {
-                // Skip button
-                if executionManager.state == .running || executionManager.state == .resting || executionManager.state == .roundRest {
-                    Button(action: { executionManager.skipExercise() }) {
-                        VStack(spacing: 4) {
-                            Image(systemName: "forward.end.fill")
-                                .font(.title2)
-                            Text("Skip")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.white)
-                        .frame(width: 70, height: 70)
-                        .background(Color.gray)
-                        .cornerRadius(35)
+        HStack(spacing: 16) {
+            // Skip button
+            if executionManager.state == .running || executionManager.state == .resting || executionManager.state == .roundRest {
+                Button(action: { executionManager.skipExercise() }) {
+                    VStack(spacing: 2) {
+                        Image(systemName: "forward.end.fill")
+                            .font(.title3)
+                        Text("Skip")
+                            .font(.caption2)
                     }
-                }
-
-                // Main action button
-                mainActionButton
-
-                // Pause/Resume button
-                if executionManager.state == .running || executionManager.state == .paused || executionManager.state == .resting || executionManager.state == .roundRest {
-                    Button(action: { executionManager.togglePause() }) {
-                        VStack(spacing: 4) {
-                            Image(systemName: executionManager.state == .paused ? "play.fill" : "pause.fill")
-                                .font(.title2)
-                            Text(executionManager.state == .paused ? "Resume" : "Pause")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.white)
-                        .frame(width: 70, height: 70)
-                        .background(executionManager.state == .paused ? Color.green : Color.orange)
-                        .cornerRadius(35)
-                    }
+                    .foregroundColor(.white)
+                    .frame(width: 60, height: 60)
+                    .background(Color.gray)
+                    .cornerRadius(30)
                 }
             }
-        }
-    }
 
-    // MARK: - Workout Info Section
-
-    private var workoutInfoSection: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 20) {
-                VStack(spacing: 4) {
-                    Text("\(workout.exerciseCount)")
+            // Main action button
+            Button(action: { handleMainAction() }) {
+                VStack(spacing: 2) {
+                    Image(systemName: mainButtonIcon)
                         .font(.title2)
-                        .fontWeight(.bold)
-                    Text("Exercises")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Text(mainButtonText)
+                        .font(.caption2)
+                        .fontWeight(.semibold)
                 }
+                .foregroundColor(.white)
+                .frame(width: 80, height: 80)
+                .background(mainButtonColor)
+                .cornerRadius(40)
+            }
 
-                if workout.rounds > 1 {
-                    VStack(spacing: 4) {
-                        Text("\(workout.rounds)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        Text("Rounds")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+            // Pause/Resume button
+            if executionManager.state == .running || executionManager.state == .paused || executionManager.state == .resting || executionManager.state == .roundRest {
+                Button(action: { executionManager.togglePause() }) {
+                    VStack(spacing: 2) {
+                        Image(systemName: executionManager.state == .paused ? "play.fill" : "pause.fill")
+                            .font(.title3)
+                        Text(executionManager.state == .paused ? "Resume" : "Pause")
+                            .font(.caption2)
                     }
-                }
-
-                VStack(spacing: 4) {
-                    Text("\(workout.timePerExercise)s")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text("Per Exercise")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    .foregroundColor(.white)
+                    .frame(width: 60, height: 60)
+                    .background(executionManager.state == .paused ? Color.green : Color.orange)
+                    .cornerRadius(30)
                 }
             }
-
-            // Execution mode badge
-            HStack(spacing: 4) {
-                Image(systemName: workout.isRoundRobin ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
-                Text(workout.isRoundRobin ? "Round Robin" : "Sequential")
-            }
-            .font(.caption)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(8)
-        }
-        .padding()
-        .background(Color(.tertiarySystemBackground))
-        .cornerRadius(12)
-    }
-
-    // MARK: - Main Action Button
-
-    private var mainActionButton: some View {
-        Button(action: { handleMainAction() }) {
-            VStack(spacing: 6) {
-                Image(systemName: mainButtonIcon)
-                    .font(.system(size: 32))
-                Text(mainButtonText)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-            }
-            .foregroundColor(.white)
-            .frame(width: 100, height: 100)
-            .background(mainButtonColor)
-            .cornerRadius(50)
         }
     }
+
+    // MARK: - Main Action Button Properties
 
     private var mainButtonIcon: String {
         switch executionManager.state {
@@ -490,26 +503,40 @@ struct WorkoutExecutionView: View {
     // MARK: - Completed View
 
     private var completedView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
+            Spacer()
+
             Image(systemName: "trophy.fill")
-                .font(.system(size: 80))
+                .font(.system(size: 60))
                 .foregroundColor(.yellow)
 
             Text("Workout Complete!")
-                .font(.largeTitle)
+                .font(.title)
                 .fontWeight(.bold)
 
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 StatRow(title: "Total Time", value: executionManager.formattedElapsedTime)
                 StatRow(title: "Exercises", value: "\(executionManager.totalExercises)")
                 if workout.rounds > 1 {
                     StatRow(title: "Rounds", value: "\(workout.rounds)")
                 }
-                StatRow(title: "Workout", value: workout.wrappedName)
             }
             .padding()
             .background(Color(.secondarySystemBackground))
-            .cornerRadius(16)
+            .cornerRadius(12)
+
+            Spacer()
+
+            Button(action: { dismiss() }) {
+                Text("Done")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.purple)
+                    .cornerRadius(12)
+            }
+            .padding(.horizontal)
         }
     }
 
