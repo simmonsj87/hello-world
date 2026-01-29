@@ -316,23 +316,18 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     private func handleTimeWarnings() {
-        // Announce upcoming transition at 5 seconds
-        if timeRemaining == 5 {
-            switch state {
-            case .running:
-                // Don't announce "next up" here - will be announced after "stop"
-                break
-            case .resting, .roundRest:
-                // Don't announce during rest - the startCountdown will handle it
-                break
-            default:
-                break
-            }
-        }
-
-        // Countdown warnings only during running state (ending an exercise)
+        // Countdown warnings during running state (ending an exercise)
         if state == .running && timeRemaining <= 3 && timeRemaining > 0 {
             voiceManager?.announceTimeWarning(seconds: timeRemaining)
+        }
+
+        // During rest periods - announce "Get ready" at 4 seconds, then count down 3, 2, 1
+        if (state == .resting || state == .roundRest) {
+            if timeRemaining == 4 {
+                voiceManager?.speak("Get ready")
+            } else if timeRemaining <= 3 && timeRemaining > 0 {
+                voiceManager?.announceTimeWarning(seconds: timeRemaining)
+            }
         }
     }
 
@@ -344,10 +339,14 @@ class WorkoutExecutionManager: ObservableObject {
             handleExerciseComplete()
 
         case .resting:
-            moveToNextExercise()
+            // Say "Go!" and start next exercise directly (countdown was during rest)
+            voiceManager?.speak("Go!")
+            startNextExerciseDirectly()
 
         case .roundRest:
-            startNextRound()
+            // Say "Go!" and start next round directly (countdown was during rest)
+            voiceManager?.speak("Go!")
+            startNextRoundDirectly()
 
         default:
             break
@@ -479,6 +478,42 @@ class WorkoutExecutionManager: ObservableObject {
             currentExerciseIndex = 0
         }
         startCountdown()
+    }
+
+    /// Start next round directly without countdown (countdown happened during rest)
+    private func startNextRoundDirectly() {
+        currentRound += 1
+        if isRoundRobin {
+            currentExerciseIndex = 0
+        }
+        startExercise()
+    }
+
+    /// Start next exercise directly without countdown (countdown happened during rest)
+    private func startNextExerciseDirectly() {
+        if isRoundRobin {
+            currentExerciseIndex += 1
+            if currentExerciseIndex >= exercises.count {
+                if currentRound < totalRounds {
+                    // This shouldn't happen - round rest handles round transitions
+                    startNextRoundDirectly()
+                } else {
+                    completeWorkout()
+                }
+            } else {
+                startExercise()
+            }
+        } else {
+            // Sequential: move to next exercise, reset round
+            currentExerciseIndex += 1
+            currentRound = 1
+
+            if currentExerciseIndex >= exercises.count {
+                completeWorkout()
+            } else {
+                startExercise()
+            }
+        }
     }
 
     private func moveToNext() {
