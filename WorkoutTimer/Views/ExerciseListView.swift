@@ -7,7 +7,6 @@
 
 import SwiftUI
 import CoreData
-import UniformTypeIdentifiers
 
 struct ExerciseListView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -25,12 +24,6 @@ struct ExerciseListView: View {
     @State private var showingAddExercise = false
     @State private var exerciseToEdit: Exercise?
     @State private var showDisabled = true
-    @State private var showingExportSheet = false
-    @State private var exportURL: URL?
-    @State private var showingImportPicker = false
-    @State private var showingImportSuccess = false
-    @State private var showingImportError = false
-    @State private var importErrorMessage = ""
 
     private var filteredExercises: [Exercise] {
         var result = Array(exercises)
@@ -76,12 +69,6 @@ struct ExerciseListView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Menu {
                         Toggle("Show Disabled", isOn: $showDisabled)
-
-                        Divider()
-
-                        Button(action: { showingImportPicker = true }) {
-                            Label("Import Exercises", systemImage: "square.and.arrow.down")
-                        }
                     } label: {
                         Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
                     }
@@ -98,24 +85,6 @@ struct ExerciseListView: View {
             }
             .sheet(item: $exerciseToEdit) { exercise in
                 EditExerciseView(exercise: exercise)
-            }
-            .sheet(isPresented: $showingExportSheet) {
-                if let url = exportURL {
-                    ShareSheet(items: [url])
-                }
-            }
-            .sheet(isPresented: $showingImportPicker) {
-                DocumentPicker(onDocumentPicked: importFromFile)
-            }
-            .alert("Import Successful", isPresented: $showingImportSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Exercise(s) imported successfully.")
-            }
-            .alert("Import Failed", isPresented: $showingImportError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(importErrorMessage)
             }
         }
     }
@@ -177,28 +146,6 @@ struct ExerciseListView: View {
                             onToggleEnabled: { toggleEnabled(exercise) },
                             onEdit: { exerciseToEdit = exercise }
                         )
-                        .contextMenu {
-                            Button(action: { exportExercise(exercise) }) {
-                                Label("Share Exercise", systemImage: "square.and.arrow.up")
-                            }
-
-                            Button(action: { exerciseToEdit = exercise }) {
-                                Label("Edit", systemImage: "pencil")
-                            }
-
-                            Button(action: { toggleEnabled(exercise) }) {
-                                Label(
-                                    exercise.isEnabled ? "Disable" : "Enable",
-                                    systemImage: exercise.isEnabled ? "eye.slash" : "eye"
-                                )
-                            }
-
-                            Divider()
-
-                            Button(role: .destructive, action: { deleteExercise(exercise) }) {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 deleteExercise(exercise)
@@ -245,98 +192,6 @@ struct ExerciseListView: View {
             } catch {
                 print("Error deleting exercise: \(error)")
             }
-        }
-    }
-
-    private func exportExercise(_ exercise: Exercise) {
-        guard let id = exercise.id else { return }
-
-        let exportData = SingleExerciseExport(
-            exportDate: Date(),
-            appVersion: "1.0.0",
-            exercise: ExerciseExport(
-                id: id,
-                name: exercise.wrappedName,
-                category: exercise.wrappedCategory,
-                createdDate: exercise.wrappedCreatedDate
-            )
-        )
-
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(exportData)
-
-            let tempDir = FileManager.default.temporaryDirectory
-            let sanitizedName = exercise.wrappedName.replacingOccurrences(of: " ", with: "_")
-            let fileName = "Exercise_\(sanitizedName).json"
-            let fileURL = tempDir.appendingPathComponent(fileName)
-
-            try data.write(to: fileURL)
-            exportURL = fileURL
-            showingExportSheet = true
-        } catch {
-            print("Export error: \(error)")
-        }
-    }
-
-    private func importFromFile(_ url: URL) {
-        do {
-            guard url.startAccessingSecurityScopedResource() else {
-                importErrorMessage = "Could not access the selected file."
-                showingImportError = true
-                return
-            }
-            defer { url.stopAccessingSecurityScopedResource() }
-
-            let data = try Data(contentsOf: url)
-
-            // Try to decode as single exercise first
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-
-            if let singleExport = try? decoder.decode(SingleExerciseExport.self, from: data) {
-                importSingleExercise(singleExport.exercise)
-                showingImportSuccess = true
-            } else if let workoutExport = try? decoder.decode(SingleWorkoutExport.self, from: data) {
-                // If it's a workout export, import the exercises from it
-                for exerciseExport in workoutExport.exercises {
-                    importSingleExercise(exerciseExport)
-                }
-                showingImportSuccess = true
-            } else if let fullExport = try? decoder.decode(AppDataExport.self, from: data) {
-                // Full app export - import all exercises
-                for exerciseExport in fullExport.exercises {
-                    importSingleExercise(exerciseExport)
-                }
-                showingImportSuccess = true
-            } else {
-                importErrorMessage = "Invalid file format. Please select a valid exercise export file."
-                showingImportError = true
-            }
-        } catch {
-            importErrorMessage = "Failed to import: \(error.localizedDescription)"
-            showingImportError = true
-        }
-    }
-
-    private func importSingleExercise(_ exerciseExport: ExerciseExport) {
-        // Check if exercise already exists by name
-        let existingExercise = exercises.first { $0.wrappedName == exerciseExport.name }
-        guard existingExercise == nil else { return }
-
-        let exercise = Exercise(context: viewContext)
-        exercise.id = UUID()
-        exercise.name = exerciseExport.name
-        exercise.category = exerciseExport.category
-        exercise.createdDate = exerciseExport.createdDate
-        exercise.isEnabled = true
-
-        do {
-            try viewContext.save()
-        } catch {
-            print("Error importing exercise: \(error)")
         }
     }
 }
