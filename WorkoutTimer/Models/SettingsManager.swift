@@ -308,3 +308,154 @@ struct CategoryExport: Codable {
     let isDefault: Bool
     let orderIndex: Int
 }
+
+// MARK: - Individual Exercise Export
+
+struct SingleExerciseExport: Codable {
+    let exportDate: Date
+    let appVersion: String
+    let exercise: ExerciseExport
+}
+
+// MARK: - Individual Workout Export (with embedded exercises)
+
+struct SingleWorkoutExport: Codable {
+    let exportDate: Date
+    let appVersion: String
+    let workout: WorkoutExport
+    let exercises: [ExerciseExport]  // All exercises referenced by the workout
+}
+
+// MARK: - Exercise Library (for discovery feature)
+
+struct ExerciseLibrary {
+    static let exercises: [(name: String, category: String)] = [
+        // Upper Body
+        ("Push-ups", "Upper Body"),
+        ("Diamond Push-ups", "Upper Body"),
+        ("Wide Push-ups", "Upper Body"),
+        ("Decline Push-ups", "Upper Body"),
+        ("Pike Push-ups", "Upper Body"),
+        ("Tricep Dips", "Upper Body"),
+        ("Bench Dips", "Upper Body"),
+        ("Arm Circles", "Upper Body"),
+        ("Shoulder Taps", "Upper Body"),
+        ("Plank to Push-up", "Upper Body"),
+        ("Superman Pull", "Upper Body"),
+        ("Inchworms", "Upper Body"),
+        ("Bear Crawl", "Upper Body"),
+        ("Commandos", "Upper Body"),
+        ("Hindu Push-ups", "Upper Body"),
+        ("Archer Push-ups", "Upper Body"),
+
+        // Lower Body
+        ("Squats", "Lower Body"),
+        ("Jump Squats", "Lower Body"),
+        ("Sumo Squats", "Lower Body"),
+        ("Bulgarian Split Squats", "Lower Body"),
+        ("Lunges", "Lower Body"),
+        ("Reverse Lunges", "Lower Body"),
+        ("Walking Lunges", "Lower Body"),
+        ("Jump Lunges", "Lower Body"),
+        ("Calf Raises", "Lower Body"),
+        ("Single Leg Calf Raises", "Lower Body"),
+        ("Wall Sit", "Lower Body"),
+        ("Glute Bridges", "Lower Body"),
+        ("Single Leg Glute Bridge", "Lower Body"),
+        ("Hip Thrusts", "Lower Body"),
+        ("Donkey Kicks", "Lower Body"),
+        ("Fire Hydrants", "Lower Body"),
+        ("Side Lunges", "Lower Body"),
+        ("Curtsy Lunges", "Lower Body"),
+        ("Step-ups", "Lower Body"),
+        ("Box Jumps", "Lower Body"),
+        ("Pistol Squats", "Lower Body"),
+
+        // Core
+        ("Plank", "Core"),
+        ("Side Plank", "Core"),
+        ("Plank with Hip Dips", "Core"),
+        ("Crunches", "Core"),
+        ("Bicycle Crunches", "Core"),
+        ("Reverse Crunches", "Core"),
+        ("Sit-ups", "Core"),
+        ("V-ups", "Core"),
+        ("Leg Raises", "Core"),
+        ("Flutter Kicks", "Core"),
+        ("Scissor Kicks", "Core"),
+        ("Mountain Climbers", "Core"),
+        ("Dead Bug", "Core"),
+        ("Bird Dog", "Core"),
+        ("Russian Twists", "Core"),
+        ("Heel Taps", "Core"),
+        ("Hollow Body Hold", "Core"),
+        ("Ab Rollouts", "Core"),
+        ("Toe Touches", "Core"),
+        ("Windshield Wipers", "Core"),
+
+        // Cardio
+        ("Jumping Jacks", "Cardio"),
+        ("High Knees", "Cardio"),
+        ("Butt Kicks", "Cardio"),
+        ("Burpees", "Cardio"),
+        ("Star Jumps", "Cardio"),
+        ("Tuck Jumps", "Cardio"),
+        ("Skaters", "Cardio"),
+        ("Mountain Climbers", "Cardio"),
+        ("Fast Feet", "Cardio"),
+        ("Lateral Shuffles", "Cardio"),
+        ("Jump Rope", "Cardio"),
+        ("Shadow Boxing", "Cardio"),
+        ("Speed Skaters", "Cardio"),
+        ("Sprint in Place", "Cardio"),
+        ("Plyo Lunges", "Cardio"),
+
+        // Full Body
+        ("Burpees", "Full Body"),
+        ("Thrusters", "Full Body"),
+        ("Man Makers", "Full Body"),
+        ("Devil Press", "Full Body"),
+        ("Turkish Get-ups", "Full Body"),
+        ("Bear Crawls", "Full Body"),
+        ("Sprawls", "Full Body"),
+        ("Froggers", "Full Body"),
+        ("Inchworm to Push-up", "Full Body"),
+        ("Squat to Press", "Full Body"),
+        ("Lunge with Twist", "Full Body"),
+        ("Plank Jacks", "Full Body"),
+        ("Cross-body Mountain Climbers", "Full Body"),
+
+        // Stretching/Mobility
+        ("Cat-Cow Stretch", "Stretching"),
+        ("Child's Pose", "Stretching"),
+        ("Downward Dog", "Stretching"),
+        ("Cobra Stretch", "Stretching"),
+        ("Pigeon Pose", "Stretching"),
+        ("Hip Flexor Stretch", "Stretching"),
+        ("Hamstring Stretch", "Stretching"),
+        ("Quad Stretch", "Stretching"),
+        ("Shoulder Stretch", "Stretching"),
+        ("Chest Stretch", "Stretching"),
+        ("Tricep Stretch", "Stretching"),
+        ("Neck Rolls", "Stretching"),
+        ("Spinal Twist", "Stretching"),
+        ("World's Greatest Stretch", "Stretching"),
+        ("90/90 Hip Stretch", "Stretching"),
+    ]
+
+    static var categories: [String] {
+        Array(Set(exercises.map { $0.category })).sorted()
+    }
+
+    static func exercises(for category: String) -> [(name: String, category: String)] {
+        exercises.filter { $0.category == category }
+    }
+
+    static func search(_ query: String) -> [(name: String, category: String)] {
+        guard !query.isEmpty else { return exercises }
+        return exercises.filter {
+            $0.name.localizedCaseInsensitiveContains(query) ||
+            $0.category.localizedCaseInsensitiveContains(query)
+        }
+    }
+}
