@@ -10,7 +10,7 @@ import SwiftUI
 @main
 struct WorkoutTimerApp: App {
     let persistenceController = PersistenceController.shared
-    @StateObject private var settingsManager = SettingsManager.shared
+    @ObservedObject private var settingsManager = SettingsManager.shared
 
     var body: some Scene {
         WindowGroup {
