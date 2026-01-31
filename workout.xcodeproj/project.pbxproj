@@ -11,9 +11,9 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		06B9E72E2F28F54300F40373 /* workout */ = {
+		06B9E72E2F28F54300F40373 /* WorkoutTimer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = workout;
+			path = WorkoutTimer;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		06B9E7232F28F54300F40373 = {
 			isa = PBXGroup;
 			children = (
-				06B9E72E2F28F54300F40373 /* workout */,
+				06B9E72E2F28F54300F40373 /* WorkoutTimer */,
 				06B9E72D2F28F54300F40373 /* Products */,
 			);
 			sourceTree = "<group>";
