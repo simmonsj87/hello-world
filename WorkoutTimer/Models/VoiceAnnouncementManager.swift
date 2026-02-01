@@ -56,6 +56,8 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     private var countdownTimer: Timer?
     private var countdownCompletion: (() -> Void)?
     private var countdownTickHandler: ((Int) -> Void)?
+    private var triggerOnStart: Bool = false  // Whether to trigger completion on speech start
+    private var currentUtteranceText: String = ""  // Track current utterance for start detection
 
     private let settingsKey = "VoiceAnnouncementSettings"
 
@@ -287,6 +289,8 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         isProcessingQueue = false
         countdownCompletion = nil
         countdownTickHandler = nil
+        triggerOnStart = false
+        currentUtteranceText = ""
 
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
@@ -315,17 +319,27 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
 
         isProcessingQueue = true
         let text = announcementQueue.removeFirst()
+        currentUtteranceText = text  // Track for start detection
+
+        // Set flag to trigger completion when "Go!" or "Stop" STARTS (not finishes)
+        if ["Go!", "Stop"].contains(text) && announcementQueue.isEmpty {
+            triggerOnStart = true
+        }
+
         let utterance = createUtterance(for: text)
 
         // Shorter pause for countdown numbers
         if ["3", "2", "1"].contains(text) {
-            utterance.postUtteranceDelay = 0.6
+            utterance.postUtteranceDelay = 0.5  // Slightly shorter for snappier countdown
             // Notify tick handler with the countdown number
             if let number = Int(text) {
                 countdownTickHandler?(number)
             }
         } else if text.contains("in") {
             utterance.postUtteranceDelay = 0.3
+        } else if ["Go!", "Stop"].contains(text) {
+            // No pre-delay for Go/Stop - should be immediate
+            utterance.preUtteranceDelay = 0
         }
 
         speechSynthesizer.speak(utterance)
@@ -455,6 +469,16 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         DispatchQueue.main.async {
             self.isSpeaking = true
+
+            // Trigger completion immediately when "Go!" or "Stop" STARTS speaking
+            // This ensures the timer starts/stops exactly when the word begins
+            if self.triggerOnStart {
+                self.triggerOnStart = false
+                if let completion = self.countdownCompletion {
+                    self.countdownCompletion = nil
+                    completion()
+                }
+            }
         }
     }
 
@@ -462,14 +486,14 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
         DispatchQueue.main.async {
             if self.isProcessingQueue && !self.announcementQueue.isEmpty {
                 // Small delay between countdown numbers
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     self.processNextAnnouncement()
                 }
             } else {
                 self.isSpeaking = false
                 self.isProcessingQueue = false
 
-                // Call completion handler when countdown queue finishes
+                // Call completion handler when countdown queue finishes (if not already called on start)
                 if let completion = self.countdownCompletion {
                     self.countdownCompletion = nil
                     completion()
@@ -481,6 +505,7 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         DispatchQueue.main.async {
             self.isSpeaking = false
+            self.triggerOnStart = false
         }
     }
 }
