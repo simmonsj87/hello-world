@@ -328,134 +328,202 @@ struct SingleWorkoutExport: Codable {
 
 // MARK: - Exercise Library (for discovery feature)
 
+enum Equipment: String, CaseIterable {
+    case none = "No Equipment"
+    case dumbbells = "Dumbbells"
+    case kettlebell = "Kettlebell"
+    case resistanceBands = "Resistance Bands"
+    case pullUpBar = "Pull-up Bar"
+    case bench = "Bench"
+    case box = "Box/Step"
+    case jumpRope = "Jump Rope"
+    case abWheel = "Ab Wheel"
+
+    var icon: String {
+        switch self {
+        case .none: return "figure.stand"
+        case .dumbbells: return "dumbbell.fill"
+        case .kettlebell: return "figure.strengthtraining.traditional"
+        case .resistanceBands: return "arrow.left.arrow.right"
+        case .pullUpBar: return "figure.climbing"
+        case .bench: return "rectangle.fill"
+        case .box: return "square.stack.3d.up.fill"
+        case .jumpRope: return "lasso"
+        case .abWheel: return "circle.circle"
+        }
+    }
+}
+
+struct LibraryExercise {
+    let name: String
+    let category: String
+    let equipment: Equipment
+}
+
 struct ExerciseLibrary {
-    static let exercises: [(name: String, category: String)] = [
-        // Upper Body
-        ("Push-ups", "Upper Body"),
-        ("Diamond Push-ups", "Upper Body"),
-        ("Wide Push-ups", "Upper Body"),
-        ("Decline Push-ups", "Upper Body"),
-        ("Pike Push-ups", "Upper Body"),
-        ("Tricep Dips", "Upper Body"),
-        ("Bench Dips", "Upper Body"),
-        ("Arm Circles", "Upper Body"),
-        ("Shoulder Taps", "Upper Body"),
-        ("Plank to Push-up", "Upper Body"),
-        ("Superman Pull", "Upper Body"),
-        ("Inchworms", "Upper Body"),
-        ("Bear Crawl", "Upper Body"),
-        ("Commandos", "Upper Body"),
-        ("Hindu Push-ups", "Upper Body"),
-        ("Archer Push-ups", "Upper Body"),
+    static let exercises: [LibraryExercise] = [
+        // Upper Body - No Equipment
+        LibraryExercise(name: "Push-ups", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Diamond Push-ups", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Wide Push-ups", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Decline Push-ups", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Pike Push-ups", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Tricep Dips", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Arm Circles", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Shoulder Taps", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Plank to Push-up", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Superman Pull", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Inchworms", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Bear Crawl", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Commandos", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Hindu Push-ups", category: "Upper Body", equipment: .none),
+        LibraryExercise(name: "Archer Push-ups", category: "Upper Body", equipment: .none),
+        // Upper Body - Equipment
+        LibraryExercise(name: "Bench Dips", category: "Upper Body", equipment: .bench),
+        LibraryExercise(name: "Dumbbell Rows", category: "Upper Body", equipment: .dumbbells),
+        LibraryExercise(name: "Dumbbell Press", category: "Upper Body", equipment: .dumbbells),
+        LibraryExercise(name: "Dumbbell Flyes", category: "Upper Body", equipment: .dumbbells),
+        LibraryExercise(name: "Bicep Curls", category: "Upper Body", equipment: .dumbbells),
+        LibraryExercise(name: "Tricep Extensions", category: "Upper Body", equipment: .dumbbells),
+        LibraryExercise(name: "Shoulder Press", category: "Upper Body", equipment: .dumbbells),
+        LibraryExercise(name: "Lateral Raises", category: "Upper Body", equipment: .dumbbells),
+        LibraryExercise(name: "Pull-ups", category: "Upper Body", equipment: .pullUpBar),
+        LibraryExercise(name: "Chin-ups", category: "Upper Body", equipment: .pullUpBar),
+        LibraryExercise(name: "Kettlebell Swings", category: "Upper Body", equipment: .kettlebell),
+        LibraryExercise(name: "Band Pull-aparts", category: "Upper Body", equipment: .resistanceBands),
 
-        // Lower Body
-        ("Squats", "Lower Body"),
-        ("Jump Squats", "Lower Body"),
-        ("Sumo Squats", "Lower Body"),
-        ("Bulgarian Split Squats", "Lower Body"),
-        ("Lunges", "Lower Body"),
-        ("Reverse Lunges", "Lower Body"),
-        ("Walking Lunges", "Lower Body"),
-        ("Jump Lunges", "Lower Body"),
-        ("Calf Raises", "Lower Body"),
-        ("Single Leg Calf Raises", "Lower Body"),
-        ("Wall Sit", "Lower Body"),
-        ("Glute Bridges", "Lower Body"),
-        ("Single Leg Glute Bridge", "Lower Body"),
-        ("Hip Thrusts", "Lower Body"),
-        ("Donkey Kicks", "Lower Body"),
-        ("Fire Hydrants", "Lower Body"),
-        ("Side Lunges", "Lower Body"),
-        ("Curtsy Lunges", "Lower Body"),
-        ("Step-ups", "Lower Body"),
-        ("Box Jumps", "Lower Body"),
-        ("Pistol Squats", "Lower Body"),
+        // Lower Body - No Equipment
+        LibraryExercise(name: "Squats", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Jump Squats", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Sumo Squats", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Lunges", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Reverse Lunges", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Walking Lunges", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Jump Lunges", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Calf Raises", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Single Leg Calf Raises", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Wall Sit", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Glute Bridges", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Single Leg Glute Bridge", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Hip Thrusts", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Donkey Kicks", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Fire Hydrants", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Side Lunges", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Curtsy Lunges", category: "Lower Body", equipment: .none),
+        LibraryExercise(name: "Pistol Squats", category: "Lower Body", equipment: .none),
+        // Lower Body - Equipment
+        LibraryExercise(name: "Bulgarian Split Squats", category: "Lower Body", equipment: .bench),
+        LibraryExercise(name: "Step-ups", category: "Lower Body", equipment: .box),
+        LibraryExercise(name: "Box Jumps", category: "Lower Body", equipment: .box),
+        LibraryExercise(name: "Goblet Squats", category: "Lower Body", equipment: .kettlebell),
+        LibraryExercise(name: "Dumbbell Lunges", category: "Lower Body", equipment: .dumbbells),
+        LibraryExercise(name: "Dumbbell Deadlifts", category: "Lower Body", equipment: .dumbbells),
+        LibraryExercise(name: "Banded Squats", category: "Lower Body", equipment: .resistanceBands),
 
-        // Core
-        ("Plank", "Core"),
-        ("Side Plank", "Core"),
-        ("Plank with Hip Dips", "Core"),
-        ("Crunches", "Core"),
-        ("Bicycle Crunches", "Core"),
-        ("Reverse Crunches", "Core"),
-        ("Sit-ups", "Core"),
-        ("V-ups", "Core"),
-        ("Leg Raises", "Core"),
-        ("Flutter Kicks", "Core"),
-        ("Scissor Kicks", "Core"),
-        ("Mountain Climbers", "Core"),
-        ("Dead Bug", "Core"),
-        ("Bird Dog", "Core"),
-        ("Russian Twists", "Core"),
-        ("Heel Taps", "Core"),
-        ("Hollow Body Hold", "Core"),
-        ("Ab Rollouts", "Core"),
-        ("Toe Touches", "Core"),
-        ("Windshield Wipers", "Core"),
+        // Core - No Equipment
+        LibraryExercise(name: "Plank", category: "Core", equipment: .none),
+        LibraryExercise(name: "Side Plank", category: "Core", equipment: .none),
+        LibraryExercise(name: "Plank with Hip Dips", category: "Core", equipment: .none),
+        LibraryExercise(name: "Crunches", category: "Core", equipment: .none),
+        LibraryExercise(name: "Bicycle Crunches", category: "Core", equipment: .none),
+        LibraryExercise(name: "Reverse Crunches", category: "Core", equipment: .none),
+        LibraryExercise(name: "Sit-ups", category: "Core", equipment: .none),
+        LibraryExercise(name: "V-ups", category: "Core", equipment: .none),
+        LibraryExercise(name: "Leg Raises", category: "Core", equipment: .none),
+        LibraryExercise(name: "Flutter Kicks", category: "Core", equipment: .none),
+        LibraryExercise(name: "Scissor Kicks", category: "Core", equipment: .none),
+        LibraryExercise(name: "Mountain Climbers", category: "Core", equipment: .none),
+        LibraryExercise(name: "Dead Bug", category: "Core", equipment: .none),
+        LibraryExercise(name: "Bird Dog", category: "Core", equipment: .none),
+        LibraryExercise(name: "Russian Twists", category: "Core", equipment: .none),
+        LibraryExercise(name: "Heel Taps", category: "Core", equipment: .none),
+        LibraryExercise(name: "Hollow Body Hold", category: "Core", equipment: .none),
+        LibraryExercise(name: "Toe Touches", category: "Core", equipment: .none),
+        LibraryExercise(name: "Windshield Wipers", category: "Core", equipment: .none),
+        // Core - Equipment
+        LibraryExercise(name: "Ab Rollouts", category: "Core", equipment: .abWheel),
+        LibraryExercise(name: "Hanging Leg Raises", category: "Core", equipment: .pullUpBar),
+        LibraryExercise(name: "Weighted Russian Twists", category: "Core", equipment: .dumbbells),
 
-        // Cardio
-        ("Jumping Jacks", "Cardio"),
-        ("High Knees", "Cardio"),
-        ("Butt Kicks", "Cardio"),
-        ("Burpees", "Cardio"),
-        ("Star Jumps", "Cardio"),
-        ("Tuck Jumps", "Cardio"),
-        ("Skaters", "Cardio"),
-        ("Mountain Climbers", "Cardio"),
-        ("Fast Feet", "Cardio"),
-        ("Lateral Shuffles", "Cardio"),
-        ("Jump Rope", "Cardio"),
-        ("Shadow Boxing", "Cardio"),
-        ("Speed Skaters", "Cardio"),
-        ("Sprint in Place", "Cardio"),
-        ("Plyo Lunges", "Cardio"),
+        // Cardio - No Equipment
+        LibraryExercise(name: "Jumping Jacks", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "High Knees", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Butt Kicks", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Burpees", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Star Jumps", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Tuck Jumps", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Skaters", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Fast Feet", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Lateral Shuffles", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Shadow Boxing", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Speed Skaters", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Sprint in Place", category: "Cardio", equipment: .none),
+        LibraryExercise(name: "Plyo Lunges", category: "Cardio", equipment: .none),
+        // Cardio - Equipment
+        LibraryExercise(name: "Jump Rope", category: "Cardio", equipment: .jumpRope),
+        LibraryExercise(name: "Box Jumps", category: "Cardio", equipment: .box),
 
-        // Full Body
-        ("Burpees", "Full Body"),
-        ("Thrusters", "Full Body"),
-        ("Man Makers", "Full Body"),
-        ("Devil Press", "Full Body"),
-        ("Turkish Get-ups", "Full Body"),
-        ("Bear Crawls", "Full Body"),
-        ("Sprawls", "Full Body"),
-        ("Froggers", "Full Body"),
-        ("Inchworm to Push-up", "Full Body"),
-        ("Squat to Press", "Full Body"),
-        ("Lunge with Twist", "Full Body"),
-        ("Plank Jacks", "Full Body"),
-        ("Cross-body Mountain Climbers", "Full Body"),
+        // Full Body - No Equipment
+        LibraryExercise(name: "Burpees", category: "Full Body", equipment: .none),
+        LibraryExercise(name: "Bear Crawls", category: "Full Body", equipment: .none),
+        LibraryExercise(name: "Sprawls", category: "Full Body", equipment: .none),
+        LibraryExercise(name: "Froggers", category: "Full Body", equipment: .none),
+        LibraryExercise(name: "Inchworm to Push-up", category: "Full Body", equipment: .none),
+        LibraryExercise(name: "Lunge with Twist", category: "Full Body", equipment: .none),
+        LibraryExercise(name: "Plank Jacks", category: "Full Body", equipment: .none),
+        LibraryExercise(name: "Cross-body Mountain Climbers", category: "Full Body", equipment: .none),
+        // Full Body - Equipment
+        LibraryExercise(name: "Thrusters", category: "Full Body", equipment: .dumbbells),
+        LibraryExercise(name: "Man Makers", category: "Full Body", equipment: .dumbbells),
+        LibraryExercise(name: "Devil Press", category: "Full Body", equipment: .dumbbells),
+        LibraryExercise(name: "Turkish Get-ups", category: "Full Body", equipment: .kettlebell),
+        LibraryExercise(name: "Squat to Press", category: "Full Body", equipment: .dumbbells),
+        LibraryExercise(name: "Kettlebell Swings", category: "Full Body", equipment: .kettlebell),
 
-        // Stretching/Mobility
-        ("Cat-Cow Stretch", "Stretching"),
-        ("Child's Pose", "Stretching"),
-        ("Downward Dog", "Stretching"),
-        ("Cobra Stretch", "Stretching"),
-        ("Pigeon Pose", "Stretching"),
-        ("Hip Flexor Stretch", "Stretching"),
-        ("Hamstring Stretch", "Stretching"),
-        ("Quad Stretch", "Stretching"),
-        ("Shoulder Stretch", "Stretching"),
-        ("Chest Stretch", "Stretching"),
-        ("Tricep Stretch", "Stretching"),
-        ("Neck Rolls", "Stretching"),
-        ("Spinal Twist", "Stretching"),
-        ("World's Greatest Stretch", "Stretching"),
-        ("90/90 Hip Stretch", "Stretching"),
+        // Stretching/Mobility - No Equipment
+        LibraryExercise(name: "Cat-Cow Stretch", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Child's Pose", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Downward Dog", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Cobra Stretch", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Pigeon Pose", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Hip Flexor Stretch", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Hamstring Stretch", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Quad Stretch", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Shoulder Stretch", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Chest Stretch", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Tricep Stretch", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Neck Rolls", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "Spinal Twist", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "World's Greatest Stretch", category: "Stretching", equipment: .none),
+        LibraryExercise(name: "90/90 Hip Stretch", category: "Stretching", equipment: .none),
     ]
 
     static var categories: [String] {
         Array(Set(exercises.map { $0.category })).sorted()
     }
 
-    static func exercises(for category: String) -> [(name: String, category: String)] {
-        exercises.filter { $0.category == category }
+    static var equipmentTypes: [Equipment] {
+        Equipment.allCases
     }
 
-    static func search(_ query: String) -> [(name: String, category: String)] {
-        guard !query.isEmpty else { return exercises }
-        return exercises.filter {
-            $0.name.localizedCaseInsensitiveContains(query) ||
-            $0.category.localizedCaseInsensitiveContains(query)
+    static func filter(category: String? = nil, equipment: Equipment? = nil, search: String = "") -> [LibraryExercise] {
+        var results = exercises
+
+        if let category = category {
+            results = results.filter { $0.category == category }
         }
+
+        if let equipment = equipment {
+            results = results.filter { $0.equipment == equipment }
+        }
+
+        if !search.isEmpty {
+            results = results.filter {
+                $0.name.localizedCaseInsensitiveContains(search) ||
+                $0.category.localizedCaseInsensitiveContains(search)
+            }
+        }
+
+        return results
     }
 }

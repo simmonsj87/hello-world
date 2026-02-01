@@ -100,43 +100,48 @@ struct TimerView: View {
                     value: $configuration.workDuration,
                     range: 15...180,
                     step: 5,
-                    unit: "sec"
+                    unit: "sec",
+                    valueColor: .green
                 )
-                Divider()
+                Divider().padding(.vertical, 4)
 
                 ConfigurationRow(
                     title: "Rest Duration",
                     value: $configuration.restDuration,
                     range: 5...60,
                     step: 5,
-                    unit: "sec"
+                    unit: "sec",
+                    valueColor: .yellow
                 )
-                Divider()
+                Divider().padding(.vertical, 4)
 
                 ConfigurationRow(
-                    title: "Cycles per Round",
+                    title: "Sets per Round",
                     value: $configuration.cycles,
                     range: 1...20,
                     step: 1,
-                    unit: ""
+                    unit: "",
+                    valueColor: .primary
                 )
-                Divider()
+                Divider().padding(.vertical, 4)
 
                 ConfigurationRow(
                     title: "Rounds",
                     value: $configuration.rounds,
                     range: 1...10,
                     step: 1,
-                    unit: ""
+                    unit: "",
+                    valueColor: .primary
                 )
-                Divider()
+                Divider().padding(.vertical, 4)
 
                 ConfigurationRow(
                     title: "Rest Between Rounds",
                     value: $configuration.restBetweenRounds,
                     range: 30...180,
                     step: 10,
-                    unit: "sec"
+                    unit: "sec",
+                    valueColor: .blue
                 )
             }
             .padding()
@@ -192,12 +197,12 @@ struct TimerView: View {
             .frame(width: 300, height: 300)
             .padding()
 
-            // Round and Cycle Display
+            // Round and Set Display
             if timerManager.currentState != .completed {
                 VStack(spacing: 4) {
                     Text("Round \(timerManager.currentRound) of \(timerManager.configuration.rounds)")
                         .font(.headline)
-                    Text("Cycle \(timerManager.currentCycle) of \(timerManager.configuration.cycles)")
+                    Text("Set \(timerManager.currentCycle) of \(timerManager.configuration.cycles)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -273,7 +278,7 @@ struct TimerView: View {
 
             // Stats
             HStack {
-                StatView(title: "Cycles Done", value: "\(timerManager.totalCyclesCompleted)/\(timerManager.totalCycles)")
+                StatView(title: "Sets Done", value: "\(timerManager.totalCyclesCompleted)/\(timerManager.totalCycles)")
                 Spacer()
                 StatView(title: "Current State", value: timerManager.currentState.displayName)
             }
@@ -370,6 +375,7 @@ struct ConfigurationRow: View {
     let range: ClosedRange<Int>
     let step: Int
     let unit: String
+    var valueColor: Color = .primary
 
     var body: some View {
         HStack {
@@ -392,7 +398,9 @@ struct ConfigurationRow: View {
 
                 Text("\(value)\(unit.isEmpty ? "" : " \(unit)")")
                     .font(.headline)
+                    .fontWeight(.bold)
                     .monospacedDigit()
+                    .foregroundColor(valueColor)
                     .frame(minWidth: 70)
 
                 Button(action: {
@@ -407,7 +415,7 @@ struct ConfigurationRow: View {
                 .disabled(value >= range.upperBound)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 12)
     }
 }
 
