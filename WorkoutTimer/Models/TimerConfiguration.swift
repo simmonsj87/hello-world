@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import Combine
+import SwiftUI
 
 struct TimerConfiguration: Codable, Equatable {
     /// Duration of work intervals in seconds
