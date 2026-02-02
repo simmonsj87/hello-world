@@ -125,7 +125,7 @@ class IntervalTimerManager: ObservableObject {
         isPaused = false
         hasAnnouncedCountdown = false
         currentState = .working
-        voiceManager?.announce("Restarting workout")
+        voiceManager?.speak("Restarting workout")
         startTimer()
     }
 
