@@ -27,8 +27,10 @@ struct ExerciseListView: View {
     @State private var showingAddExercise = false
     @State private var exerciseToEdit: Exercise?
     @State private var showDisabled = true
-    @State private var showingExportSheet = false
-    @State private var exportURL: URL?
+    @State private var exportItem: ExerciseShareableURL?
+    @State private var shareTextItem: ExerciseShareableText?
+    @State private var exerciseToShare: Exercise?
+    @State private var showingShareOptions = false
     @State private var showingImportPicker = false
     @State private var showingImportSuccess = false
     @State private var showingImportError = false
@@ -170,9 +172,25 @@ struct ExerciseListView: View {
             .sheet(item: $exerciseToEdit) { exercise in
                 EditExerciseView(exercise: exercise)
             }
-            .sheet(isPresented: $showingExportSheet) {
-                if let url = exportURL {
-                    ShareSheet(items: [url])
+            .sheet(item: $exportItem) { item in
+                ShareSheet(items: [item.url])
+            }
+            .sheet(item: $shareTextItem) { item in
+                ShareSheet(items: [item.text])
+            }
+            .sheet(isPresented: $showingShareOptions) {
+                if let exercise = exerciseToShare {
+                    ExerciseShareOptionsSheet(
+                        exercise: exercise,
+                        onShareAsFile: {
+                            showingShareOptions = false
+                            exportExercise(exercise)
+                        },
+                        onShareAsText: {
+                            showingShareOptions = false
+                            shareExerciseAsText(exercise)
+                        }
+                    )
                 }
             }
             .sheet(isPresented: $showingImportPicker) {
@@ -249,7 +267,10 @@ struct ExerciseListView: View {
                             onEdit: { exerciseToEdit = exercise }
                         )
                         .contextMenu {
-                            Button(action: { exportExercise(exercise) }) {
+                            Button(action: {
+                                exerciseToShare = exercise
+                                showingShareOptions = true
+                            }) {
                                 Label("Share Exercise", systemImage: "square.and.arrow.up")
                             }
 
@@ -345,11 +366,23 @@ struct ExerciseListView: View {
             let fileURL = tempDir.appendingPathComponent(fileName)
 
             try data.write(to: fileURL)
-            exportURL = fileURL
-            showingExportSheet = true
+            exportItem = ExerciseShareableURL(url: fileURL)
         } catch {
             print("Export error: \(error)")
         }
+    }
+
+    private func shareExerciseAsText(_ exercise: Exercise) {
+        var text = "💪 \(exercise.wrappedName)\n\n"
+        text += "📁 Category: \(exercise.wrappedCategory)\n"
+
+        if exercise.wrappedEquipment != "No Equipment" {
+            text += "🏋️ Equipment: \(exercise.wrappedEquipment)\n"
+        }
+
+        text += "\n---\nShared from Workout Timer App"
+
+        shareTextItem = ExerciseShareableText(text: text)
     }
 
     private func importFromFile(_ url: URL) {
@@ -520,6 +553,110 @@ private let dateFormatter: DateFormatter = {
     formatter.timeStyle = .none
     return formatter
 }()
+
+// MARK: - Exercise Shareable URL Wrapper
+
+struct ExerciseShareableURL: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+// MARK: - Exercise Shareable Text Wrapper
+
+struct ExerciseShareableText: Identifiable {
+    let id = UUID()
+    let text: String
+}
+
+// MARK: - Exercise Share Options Sheet
+
+struct ExerciseShareOptionsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let exercise: Exercise
+    let onShareAsFile: () -> Void
+    let onShareAsText: () -> Void
+
+    var body: some View {
+        NavigationView {
+            List {
+                Section(header: Text("Share \"\(exercise.wrappedName)\"")) {
+                    // Share as Text (for Messages/Email)
+                    Button(action: onShareAsText) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "message.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.green)
+                                .cornerRadius(10)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Share as Text")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text("Perfect for Messages, Email, or copying")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 8)
+                    }
+
+                    // Share as File (for importing into another device)
+                    Button(action: onShareAsFile) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "doc.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.blue)
+                                .cornerRadius(10)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Share as File")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text("Import into another device with this app")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+
+                Section(header: Text("Exercise Info")) {
+                    LabeledContent("Category", value: exercise.wrappedCategory)
+                    if exercise.wrappedEquipment != "No Equipment" {
+                        LabeledContent("Equipment", value: exercise.wrappedEquipment)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Share Exercise")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
 
 // MARK: - Preview
 
