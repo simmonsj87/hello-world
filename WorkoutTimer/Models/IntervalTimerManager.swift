@@ -83,20 +83,23 @@ class IntervalTimerManager: ObservableObject {
 
     /// Start the timer from the beginning
     func start() {
-        reset()
+        stopTimer()
+        voiceManager?.stop()
         currentState = .working
+        currentCycle = 1
+        currentRound = 1
         timeRemaining = configuration.workDuration
         isPaused = false
         hasAnnouncedCountdown = false
 
         // Announce start with countdown - timer starts when "Go!" is said
-        voiceManager?.announceIntervalWorkStart { [weak self] in
-            guard let self = self, self.currentState == .working && !self.isPaused else { return }
-            self.startTimer()
-        }
-
-        // Fallback: if voice is disabled, start immediately
-        if voiceManager == nil || !(voiceManager?.isEnabled ?? true) {
+        if let voice = voiceManager, voice.isEnabled {
+            voice.announceIntervalWorkStart { [weak self] in
+                guard let self = self, self.currentState == .working && !self.isPaused else { return }
+                self.startTimer()
+            }
+        } else {
+            // If voice is disabled, start immediately
             startTimer()
         }
     }
@@ -125,8 +128,17 @@ class IntervalTimerManager: ObservableObject {
         isPaused = false
         hasAnnouncedCountdown = false
         currentState = .working
-        voiceManager?.speak("Restarting workout")
-        startTimer()
+
+        // Announce restart with countdown - timer starts when "Go!" is said
+        if let voice = voiceManager, voice.isEnabled {
+            voice.announceIntervalWorkStart { [weak self] in
+                guard let self = self, self.currentState == .working && !self.isPaused else { return }
+                self.startTimer()
+            }
+        } else {
+            // If voice is disabled, start immediately
+            startTimer()
+        }
     }
 
     /// Stop the timer and return to idle/configuration state

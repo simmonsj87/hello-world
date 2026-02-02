@@ -158,7 +158,7 @@ struct TimerView: View {
     // MARK: - Configuration Section
 
     private var configurationSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 6) {
             // Section Header
             HStack {
                 Text("SETTINGS")
@@ -178,7 +178,7 @@ struct TimerView: View {
                     unit: "sec",
                     valueColor: .green
                 )
-                Divider().padding(.vertical, 4)
+                Divider().padding(.vertical, 2)
 
                 ConfigurationRow(
                     title: "Rest Duration",
@@ -188,7 +188,7 @@ struct TimerView: View {
                     unit: "sec",
                     valueColor: .orange
                 )
-                Divider().padding(.vertical, 4)
+                Divider().padding(.vertical, 2)
 
                 ConfigurationRow(
                     title: "Sets per Round",
@@ -198,7 +198,7 @@ struct TimerView: View {
                     unit: "",
                     valueColor: .primary
                 )
-                Divider().padding(.vertical, 4)
+                Divider().padding(.vertical, 2)
 
                 ConfigurationRow(
                     title: "Rounds",
@@ -208,7 +208,7 @@ struct TimerView: View {
                     unit: "",
                     valueColor: .primary
                 )
-                Divider().padding(.vertical, 4)
+                Divider().padding(.vertical, 2)
 
                 ConfigurationRow(
                     title: "Rest Between Rounds",
@@ -219,7 +219,8 @@ struct TimerView: View {
                     valueColor: .blue
                 )
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.vertical, 10)
             .background(Color(.tertiarySystemBackground))
             .cornerRadius(12)
         }
