@@ -169,8 +169,8 @@ struct WorkoutBuilderView: View {
                     Label("Time Per Exercise", systemImage: "timer")
                     Spacer()
                     Text("\(timePerExercise) sec")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.accentColor)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
                 }
 
                 Slider(value: Binding(
@@ -197,8 +197,8 @@ struct WorkoutBuilderView: View {
                     Label("Rest Between Exercises", systemImage: "pause.circle")
                     Spacer()
                     Text(restBetweenExercises == 0 ? "None" : "\(restBetweenExercises) sec")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
+                        .fontWeight(.bold)
+                        .foregroundColor(.yellow)
                 }
 
                 Slider(value: Binding(
@@ -215,8 +215,8 @@ struct WorkoutBuilderView: View {
                     Label("Rest Between Rounds", systemImage: "arrow.counterclockwise")
                     Spacer()
                     Text(restBetweenRounds == 0 ? "None" : "\(restBetweenRounds) sec")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.orange)
+                        .fontWeight(.bold)
+                        .foregroundColor(.blue)
                 }
 
                 Slider(value: Binding(

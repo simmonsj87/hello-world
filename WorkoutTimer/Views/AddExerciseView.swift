@@ -174,7 +174,8 @@ struct ExerciseDiscoveryView: View {
     let existingExercises: [Exercise]
 
     @State private var searchText = ""
-    @State private var selectedCategory: String? = nil
+    @State private var selectedCategory: String = "All"
+    @State private var selectedEquipment: String = "All"
     @State private var addedExercises: Set<String> = []
     @State private var showingAddedAlert = false
     @State private var lastAddedExercise = ""
@@ -183,26 +184,14 @@ struct ExerciseDiscoveryView: View {
         Set(existingExercises.map { $0.wrappedName })
     }
 
-    private var filteredExercises: [(name: String, category: String)] {
-        var results = ExerciseLibrary.exercises
+    private var filteredExercises: [LibraryExercise] {
+        let category: String? = selectedCategory == "All" ? nil : selectedCategory
+        let equipment: Equipment? = selectedEquipment == "All" ? nil : Equipment.allCases.first { $0.rawValue == selectedEquipment }
 
-        // Filter by category if selected
-        if let category = selectedCategory {
-            results = results.filter { $0.category == category }
-        }
-
-        // Filter by search text
-        if !searchText.isEmpty {
-            results = results.filter {
-                $0.name.localizedCaseInsensitiveContains(searchText) ||
-                $0.category.localizedCaseInsensitiveContains(searchText)
-            }
-        }
-
-        return results
+        return ExerciseLibrary.filter(category: category, equipment: equipment, search: searchText)
     }
 
-    private var groupedExercises: [String: [(name: String, category: String)]] {
+    private var groupedExercises: [String: [LibraryExercise]] {
         Dictionary(grouping: filteredExercises) { $0.category }
     }
 
@@ -213,29 +202,62 @@ struct ExerciseDiscoveryView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Category filter chips
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        CategoryChip(
-                            title: "All",
-                            isSelected: selectedCategory == nil,
-                            action: { selectedCategory = nil }
-                        )
-
-                        ForEach(ExerciseLibrary.categories, id: \.self) { category in
-                            CategoryChip(
-                                title: category,
-                                isSelected: selectedCategory == category,
-                                action: { selectedCategory = category }
-                            )
+                // Filter Section
+                VStack(spacing: 12) {
+                    // Category Dropdown
+                    HStack {
+                        Label("Category", systemImage: "folder")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Picker("Category", selection: $selectedCategory) {
+                            Text("All Categories").tag("All")
+                            ForEach(ExerciseLibrary.categories, id: \.self) { category in
+                                Text(category).tag(category)
+                            }
                         }
+                        .pickerStyle(.menu)
+                        .tint(.accentColor)
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+
+                    Divider()
+
+                    // Equipment Dropdown
+                    HStack {
+                        Label("Equipment", systemImage: "dumbbell")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Picker("Equipment", selection: $selectedEquipment) {
+                            Text("All Equipment").tag("All")
+                            ForEach(Equipment.allCases, id: \.rawValue) { equipment in
+                                Label(equipment.rawValue, systemImage: equipment.icon).tag(equipment.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(.accentColor)
+                    }
                 }
-                .background(Color(.systemBackground))
+                .padding()
+                .background(Color(.secondarySystemBackground))
 
                 Divider()
+
+                // Results count
+                HStack {
+                    Text("\(filteredExercises.count) exercises")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    if !addedExercises.isEmpty {
+                        Text("\(addedExercises.count) added")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.green)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
 
                 // Exercise list
                 if filteredExercises.isEmpty {
@@ -247,7 +269,7 @@ struct ExerciseDiscoveryView: View {
                         Text("No exercises found")
                             .font(.headline)
                             .foregroundColor(.secondary)
-                        Text("Try a different search or category")
+                        Text("Try different filters")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         Spacer()
@@ -260,6 +282,7 @@ struct ExerciseDiscoveryView: View {
                                     DiscoveryExerciseRow(
                                         name: exercise.name,
                                         category: exercise.category,
+                                        equipment: exercise.equipment,
                                         isInLibrary: existingExerciseNames.contains(exercise.name) || addedExercises.contains(exercise.name),
                                         onAdd: { addExercise(exercise) }
                                     )
@@ -279,14 +302,6 @@ struct ExerciseDiscoveryView: View {
                         dismiss()
                     }
                 }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if !addedExercises.isEmpty {
-                        Text("\(addedExercises.count) added")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
             }
             .alert("Exercise Added", isPresented: $showingAddedAlert) {
                 Button("OK", role: .cancel) { }
@@ -296,7 +311,7 @@ struct ExerciseDiscoveryView: View {
         }
     }
 
-    private func addExercise(_ exercise: (name: String, category: String)) {
+    private func addExercise(_ exercise: LibraryExercise) {
         // Check if already exists
         guard !existingExerciseNames.contains(exercise.name),
               !addedExercises.contains(exercise.name) else {
@@ -330,15 +345,34 @@ struct ExerciseDiscoveryView: View {
 struct DiscoveryExerciseRow: View {
     let name: String
     let category: String
+    let equipment: Equipment
     let isInLibrary: Bool
     let onAdd: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(name)
                     .font(.body)
                     .foregroundColor(isInLibrary ? .secondary : .primary)
+
+                if equipment != .none {
+                    HStack(spacing: 4) {
+                        Image(systemName: equipment.icon)
+                            .font(.caption2)
+                        Text(equipment.rawValue)
+                            .font(.caption)
+                    }
+                    .foregroundColor(.orange)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "figure.stand")
+                            .font(.caption2)
+                        Text("No Equipment")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.green)
+                }
             }
 
             Spacer()

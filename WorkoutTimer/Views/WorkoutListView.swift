@@ -27,8 +27,7 @@ struct WorkoutListView: View {
     @State private var workoutToRun: Workout?
     @State private var workoutToDelete: Workout?
     @State private var showingDeleteConfirmation = false
-    @State private var showingExportSheet = false
-    @State private var exportURL: URL?
+    @State private var exportItem: ShareableURL?
     @State private var showingImportPicker = false
     @State private var showingImportSuccess = false
     @State private var showingImportError = false
@@ -47,24 +46,20 @@ struct WorkoutListView: View {
             .navigationTitle("Workouts")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Menu {
+                    HStack(spacing: 16) {
                         Button(action: { showingRandomGenerator = true }) {
-                            Label("Random Workout", systemImage: "shuffle")
+                            Image(systemName: "shuffle")
                         }
-
-                        Divider()
 
                         Button(action: { showingImportPicker = true }) {
-                            Label("Import Workout", systemImage: "square.and.arrow.down")
+                            Image(systemName: "square.and.arrow.down")
                         }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
                     }
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingWorkoutBuilder = true }) {
-                        Label("Add Workout", systemImage: "plus")
+                        Image(systemName: "plus")
                     }
                 }
             }
@@ -84,10 +79,8 @@ struct WorkoutListView: View {
                 WorkoutExecutionView(workout: workout)
                     .environment(\.managedObjectContext, viewContext)
             }
-            .sheet(isPresented: $showingExportSheet) {
-                if let url = exportURL {
-                    ShareSheet(items: [url])
-                }
+            .sheet(item: $exportItem) { item in
+                ShareSheet(items: [item.url])
             }
             .sheet(isPresented: $showingImportPicker) {
                 DocumentPicker(onDocumentPicked: importFromFile)
@@ -290,8 +283,7 @@ struct WorkoutListView: View {
             let fileURL = tempDir.appendingPathComponent(fileName)
 
             try data.write(to: fileURL)
-            exportURL = fileURL
-            showingExportSheet = true
+            exportItem = ShareableURL(url: fileURL)
         } catch {
             print("Export error: \(error)")
         }
@@ -456,6 +448,13 @@ struct WorkoutRowWithActions: View {
         }
         .padding(.vertical, 8)
     }
+}
+
+// MARK: - Shareable URL Wrapper
+
+struct ShareableURL: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 // MARK: - Preview

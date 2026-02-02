@@ -228,9 +228,9 @@ struct SettingsView: View {
                 unit: "sec"
             )
 
-            // Cycles
+            // Sets
             SettingsStepperRow(
-                title: "Cycles per Round",
+                title: "Sets per Round",
                 value: $settings.defaultCycles,
                 range: 1...20,
                 step: 1,
