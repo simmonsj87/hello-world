@@ -10,7 +10,11 @@ import SwiftUI
 struct TimerView: View {
     @StateObject private var timerManager = IntervalTimerManager()
     @StateObject private var voiceManager = VoiceAnnouncementManager()
+    @ObservedObject private var presetsManager = TimerPresetsManager.shared
     @State private var configuration = TimerConfiguration.default
+    @State private var showingSaveSheet = false
+    @State private var showingLoadSheet = false
+    @State private var presetName = ""
 
     var body: some View {
         NavigationView {
@@ -33,6 +37,46 @@ struct TimerView: View {
                 .padding()
             }
             .navigationTitle("Interval Timer")
+            .toolbar {
+                if timerManager.currentState == .idle {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: { showingLoadSheet = true }) {
+                            Image(systemName: "folder")
+                        }
+                        .disabled(presetsManager.presets.isEmpty)
+                    }
+
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: { showingSaveSheet = true }) {
+                            Image(systemName: "square.and.arrow.down")
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showingSaveSheet) {
+                SaveTimerPresetSheet(
+                    presetName: $presetName,
+                    configuration: configuration,
+                    onSave: { name in
+                        let preset = SavedTimerPreset(name: name, configuration: configuration)
+                        presetsManager.save(preset)
+                        presetName = ""
+                        showingSaveSheet = false
+                    }
+                )
+            }
+            .sheet(isPresented: $showingLoadSheet) {
+                LoadTimerPresetSheet(
+                    presets: presetsManager.presets,
+                    onSelect: { preset in
+                        configuration = preset.configuration
+                        showingLoadSheet = false
+                    },
+                    onDelete: { indexSet in
+                        presetsManager.delete(at: indexSet)
+                    }
+                )
+            }
             .onAppear {
                 timerManager.voiceManager = voiceManager
             }
@@ -111,7 +155,7 @@ struct TimerView: View {
                     range: 5...60,
                     step: 5,
                     unit: "sec",
-                    valueColor: .yellow
+                    valueColor: .orange
                 )
                 Divider().padding(.vertical, 4)
 
@@ -298,7 +342,7 @@ struct TimerView: View {
         case .working:
             return .green
         case .resting:
-            return .yellow
+            return .orange
         case .roundRest:
             return .blue
         case .completed:
@@ -431,6 +475,121 @@ struct StatView: View {
             Text(value)
                 .font(.subheadline)
                 .fontWeight(.semibold)
+        }
+    }
+}
+
+// MARK: - Save Timer Preset Sheet
+
+struct SaveTimerPresetSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var presetName: String
+    let configuration: TimerConfiguration
+    let onSave: (String) -> Void
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Preset Name")) {
+                    TextField("Enter a name", text: $presetName)
+                        .textInputAutocapitalization(.words)
+                }
+
+                Section(header: Text("Configuration Summary")) {
+                    LabeledContent("Work Duration", value: "\(configuration.workDuration) sec")
+                    LabeledContent("Rest Duration", value: "\(configuration.restDuration) sec")
+                    LabeledContent("Sets per Round", value: "\(configuration.cycles)")
+                    LabeledContent("Rounds", value: "\(configuration.rounds)")
+                    LabeledContent("Rest Between Rounds", value: "\(configuration.restBetweenRounds) sec")
+                    LabeledContent("Total Duration", value: configuration.formattedTotalDuration)
+                }
+
+                Section {
+                    Button(action: {
+                        let trimmed = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        onSave(trimmed)
+                    }) {
+                        HStack {
+                            Spacer()
+                            Text("Save Preset")
+                                .fontWeight(.semibold)
+                            Spacer()
+                        }
+                    }
+                    .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .navigationTitle("Save Timer")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Load Timer Preset Sheet
+
+struct LoadTimerPresetSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let presets: [SavedTimerPreset]
+    let onSelect: (SavedTimerPreset) -> Void
+    let onDelete: (IndexSet) -> Void
+
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(presets) { preset in
+                    Button(action: { onSelect(preset) }) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(preset.name)
+                                .font(.headline)
+                                .foregroundColor(.primary)
+
+                            HStack(spacing: 16) {
+                                Label("\(preset.configuration.workDuration)s work", systemImage: "flame.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+
+                                Label("\(preset.configuration.restDuration)s rest", systemImage: "pause.circle.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+
+                            HStack(spacing: 16) {
+                                Label("\(preset.configuration.cycles) sets × \(preset.configuration.rounds) rounds", systemImage: "repeat")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+
+                                Label(preset.configuration.formattedTotalDuration, systemImage: "clock")
+                                    .font(.caption)
+                                    .foregroundColor(.accentColor)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .onDelete(perform: onDelete)
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Saved Timers")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
+            }
         }
     }
 }

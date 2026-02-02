@@ -24,11 +24,19 @@ struct AddExerciseView: View {
 
     @State private var exerciseName = ""
     @State private var selectedCategory = "Upper Body"
+    @State private var selectedEquipment = "No Equipment"
     @State private var showingAddCategory = false
+    @State private var showingAddEquipment = false
     @State private var showingExerciseDiscovery = false
 
     private var categoryNames: [String] {
         categories.compactMap { $0.name }
+    }
+
+    private var equipmentNames: [String] {
+        var names = Equipment.allCases.map { $0.rawValue }
+        names.append(contentsOf: CustomEquipmentManager.shared.customEquipment)
+        return names.sorted()
     }
 
     private var isFormValid: Bool {
@@ -80,6 +88,12 @@ struct AddExerciseView: View {
                             Text(category).tag(category)
                         }
                     }
+
+                    Picker("Equipment", selection: $selectedEquipment) {
+                        ForEach(equipmentNames, id: \.self) { equipment in
+                            Label(equipment, systemImage: equipmentIcon(for: equipment)).tag(equipment)
+                        }
+                    }
                 }
 
                 Section {
@@ -88,6 +102,14 @@ struct AddExerciseView: View {
                             Image(systemName: "plus.circle.fill")
                                 .foregroundColor(.green)
                             Text("Add Custom Category")
+                        }
+                    }
+
+                    Button(action: { showingAddEquipment = true }) {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(.orange)
+                            Text("Add Custom Equipment")
                         }
                     }
                 }
@@ -118,6 +140,11 @@ struct AddExerciseView: View {
                     selectedCategory = newCategory
                 }
             }
+            .sheet(isPresented: $showingAddEquipment) {
+                AddEquipmentView { newEquipment in
+                    selectedEquipment = newEquipment
+                }
+            }
             .sheet(isPresented: $showingExerciseDiscovery) {
                 ExerciseDiscoveryView(existingExercises: Array(existingExercises))
                     .environment(\.managedObjectContext, viewContext)
@@ -144,6 +171,7 @@ struct AddExerciseView: View {
             exercise.id = UUID()
             exercise.name = trimmedName
             exercise.category = selectedCategory
+            exercise.equipment = selectedEquipment
             exercise.createdDate = Date()
             exercise.isEnabled = true
 
@@ -155,6 +183,138 @@ struct AddExerciseView: View {
                 print("Error saving exercise: \(nsError), \(nsError.userInfo)")
             }
         }
+    }
+
+    private func equipmentIcon(for equipment: String) -> String {
+        if let builtIn = Equipment(rawValue: equipment) {
+            return builtIn.icon
+        }
+        return "wrench.and.screwdriver"
+    }
+}
+
+// MARK: - Custom Equipment Manager
+
+class CustomEquipmentManager: ObservableObject {
+    static let shared = CustomEquipmentManager()
+
+    private let key = "customEquipment"
+
+    @Published var customEquipment: [String] = []
+
+    private init() {
+        customEquipment = UserDefaults.standard.stringArray(forKey: key) ?? []
+    }
+
+    func add(_ equipment: String) {
+        let trimmed = equipment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !customEquipment.contains(trimmed) else { return }
+        guard Equipment(rawValue: trimmed) == nil else { return } // Don't add if it's a built-in
+
+        customEquipment.append(trimmed)
+        customEquipment.sort()
+        save()
+    }
+
+    func remove(_ equipment: String) {
+        customEquipment.removeAll { $0 == equipment }
+        save()
+    }
+
+    private func save() {
+        UserDefaults.standard.set(customEquipment, forKey: key)
+    }
+}
+
+// MARK: - Add Equipment View
+
+struct AddEquipmentView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var customEquipmentManager = CustomEquipmentManager.shared
+
+    @State private var newEquipmentName = ""
+    let onAdd: (String) -> Void
+
+    private var isFormValid: Bool {
+        let trimmed = newEquipmentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && Equipment(rawValue: trimmed) == nil
+    }
+
+    private var allEquipment: [String] {
+        var items = Equipment.allCases.map { $0.rawValue }
+        items.append(contentsOf: customEquipmentManager.customEquipment)
+        return items.sorted()
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Add New Equipment")) {
+                    TextField("Equipment Name", text: $newEquipmentName)
+                        .textInputAutocapitalization(.words)
+
+                    Button(action: addEquipment) {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Add Equipment")
+                        }
+                    }
+                    .disabled(!isFormValid)
+                }
+
+                Section(header: Text("Available Equipment")) {
+                    ForEach(allEquipment, id: \.self) { equipment in
+                        HStack {
+                            let isBuiltIn = Equipment(rawValue: equipment) != nil
+                            Image(systemName: isBuiltIn ? Equipment(rawValue: equipment)!.icon : "wrench.and.screwdriver")
+                                .foregroundColor(.accentColor)
+                                .frame(width: 24)
+
+                            Text(equipment)
+
+                            Spacer()
+
+                            if !isBuiltIn {
+                                Text("Custom")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .onDelete { indexSet in
+                        for index in indexSet {
+                            let equipment = allEquipment[index]
+                            if Equipment(rawValue: equipment) == nil {
+                                customEquipmentManager.remove(equipment)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Equipment")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
+            }
+        }
+    }
+
+    private func addEquipment() {
+        let trimmed = newEquipmentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        customEquipmentManager.add(trimmed)
+        onAdd(trimmed)
+        dismiss()
     }
 }
 

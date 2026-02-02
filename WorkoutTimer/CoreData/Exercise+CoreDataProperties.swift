@@ -17,6 +17,7 @@ extension Exercise {
     @NSManaged public var id: UUID?
     @NSManaged public var name: String?
     @NSManaged public var category: String?
+    @NSManaged public var equipment: String?
     @NSManaged public var createdDate: Date?
     @NSManaged public var isEnabled: Bool
     @NSManaged public var workoutExercises: NSSet?
@@ -59,6 +60,11 @@ extension Exercise {
     /// Unwrapped category with a default value.
     public var wrappedCategory: String {
         category ?? "Uncategorized"
+    }
+
+    /// Unwrapped equipment with a default value.
+    public var wrappedEquipment: String {
+        equipment ?? "No Equipment"
     }
 
     /// Unwrapped created date with a default value.
