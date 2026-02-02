@@ -115,8 +115,22 @@ class IntervalTimerManager: ObservableObject {
         startTimer()
     }
 
-    /// Reset the timer to initial state
+    /// Reset the timer to beginning and restart
     func reset() {
+        stopTimer()
+        voiceManager?.stop()
+        currentCycle = 1
+        currentRound = 1
+        timeRemaining = configuration.workDuration
+        isPaused = false
+        hasAnnouncedCountdown = false
+        currentState = .working
+        voiceManager?.announce("Restarting workout")
+        startTimer()
+    }
+
+    /// Stop the timer and return to idle/configuration state
+    func stop() {
         stopTimer()
         voiceManager?.stop()
         currentState = .idle

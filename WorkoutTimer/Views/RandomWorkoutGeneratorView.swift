@@ -511,9 +511,9 @@ struct RandomWorkoutGeneratorView: View {
         // Shuffle the final list for variety
         generatedExercises = selected.shuffled()
 
-        // If using target duration, adjust rounds to fit
+        // If using target duration, adjust rounds, exercise time, and rest to fit
         if useDuration {
-            adjustRoundsForTargetDuration()
+            adjustTimingsForTargetDuration()
         }
 
         withAnimation {
@@ -521,66 +521,64 @@ struct RandomWorkoutGeneratorView: View {
         }
     }
 
-    private func adjustRoundsForTargetDuration() {
+    private func adjustTimingsForTargetDuration() {
         guard !generatedExercises.isEmpty else { return }
 
         let targetTimeSeconds = targetDuration * 60
         let exerciseCount = generatedExercises.count
 
-        // Calculate time for a single round
-        let singleRoundExerciseTime = exerciseCount * exerciseDuration
-        let singleRoundRestTime = max(0, exerciseCount - 1) * restBetweenExercises
-        let singleRoundTime = singleRoundExerciseTime + singleRoundRestTime
-
-        // Try different round counts and find the best fit
-        var bestRounds = 1
+        // Try different combinations of rounds, exercise duration, and rest
+        // to find the best fit for the target duration
+        var bestConfig: (rounds: Int, exerciseDuration: Int, restBetweenExercises: Int, restBetweenRounds: Int) = (1, 30, 15, 60)
         var closestDiff = Int.max
 
+        // Try different round counts
         for testRounds in 1...10 {
-            let totalTime = singleRoundTime * testRounds + max(0, testRounds - 1) * restBetweenRounds
-            let diff = abs(totalTime - targetTimeSeconds)
-            if diff < closestDiff {
-                closestDiff = diff
-                bestRounds = testRounds
+            // Try different exercise durations (15-60 seconds in steps of 5)
+            for testExerciseDuration in stride(from: 15, through: 60, by: 5) {
+                // Try different rest between exercises (5-30 seconds in steps of 5)
+                for testRestBetween in stride(from: 5, through: 30, by: 5) {
+                    // Calculate rest between rounds (roughly 2x rest between exercises, capped at 90)
+                    let testRestBetweenRounds = min(90, testRestBetween * 2)
+
+                    // Calculate total time for this configuration
+                    let singleRoundExerciseTime = exerciseCount * testExerciseDuration
+                    let singleRoundRestTime = max(0, exerciseCount - 1) * testRestBetween
+                    let singleRoundTime = singleRoundExerciseTime + singleRoundRestTime
+                    let totalTime = singleRoundTime * testRounds + max(0, testRounds - 1) * testRestBetweenRounds
+
+                    let diff = abs(totalTime - targetTimeSeconds)
+                    if diff < closestDiff {
+                        closestDiff = diff
+                        bestConfig = (testRounds, testExerciseDuration, testRestBetween, testRestBetweenRounds)
+                    }
+                }
             }
         }
 
-        rounds = bestRounds
+        // Apply the best configuration
+        rounds = bestConfig.rounds
+        exerciseDuration = bestConfig.exerciseDuration
+        restBetweenExercises = bestConfig.restBetweenExercises
+        restBetweenRounds = bestConfig.restBetweenRounds
     }
 
     private func calculateCountsForDuration(availableByCategory: [String: [Exercise]]) -> [(String, Int)] {
-        let totalTimeSeconds = targetDuration * 60
+        // When using target duration, use the FULL category distribution
+        // We will adjust timings (rounds, exercise duration, rest) to fit the target duration
+        // instead of reducing the number of exercises
 
-        // Calculate time per exercise including rest
-        let timePerExerciseWithRest = exerciseDuration + restBetweenExercises
-
-        // Start with 1 round to calculate base exercise count
-        // We'll adjust rounds later after exercises are selected
-        let effectiveTime = totalTimeSeconds
-        let maxExercises = max(1, effectiveTime / timePerExerciseWithRest)
-
-        // Get category distribution ratios
         let totalRequested = totalExercisesFromCategories
         guard totalRequested > 0 else {
             // If no distribution set, distribute evenly across available categories
             let availableCategories = availableByCategory.keys.filter { !availableByCategory[$0]!.isEmpty }
             guard !availableCategories.isEmpty else { return [] }
-            let perCategory = max(1, maxExercises / availableCategories.count)
-            return availableCategories.map { ($0, perCategory) }
+            // Default to 2 exercises per category if no distribution is set
+            return availableCategories.map { ($0, 2) }
         }
 
-        // Scale distribution to fit duration
-        let scale = Double(maxExercises) / Double(totalRequested)
-        var result: [(String, Int)] = []
-
-        for (category, count) in categoryDistribution {
-            let scaledCount = max(0, Int(Double(count) * scale))
-            if scaledCount > 0 {
-                result.append((category, scaledCount))
-            }
-        }
-
-        return result
+        // Return the full category distribution - don't scale down
+        return categoryDistribution
     }
 
     // MARK: - Actions

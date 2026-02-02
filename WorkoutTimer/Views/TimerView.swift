@@ -118,6 +118,37 @@ struct TimerView: View {
                 .background(Color.green)
                 .cornerRadius(16)
             }
+
+            // Save and Load Buttons
+            HStack(spacing: 12) {
+                Button(action: { showingLoadSheet = true }) {
+                    HStack {
+                        Image(systemName: "folder")
+                        Text("Load Saved")
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.accentColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor.opacity(0.1))
+                    .cornerRadius(10)
+                }
+                .disabled(presetsManager.presets.isEmpty)
+                .opacity(presetsManager.presets.isEmpty ? 0.5 : 1)
+
+                Button(action: { showingSaveSheet = true }) {
+                    HStack {
+                        Image(systemName: "square.and.arrow.down")
+                        Text("Save Timer")
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.orange)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(10)
+                }
+            }
         }
         .padding()
         .background(Color(.secondarySystemBackground))
@@ -257,32 +288,44 @@ struct TimerView: View {
     // MARK: - Control Buttons Section
 
     private var controlButtonsSection: some View {
-        HStack(spacing: 20) {
-            // Reset Button
-            Button(action: {
-                timerManager.reset()
-            }) {
-                Label("Reset", systemImage: "arrow.counterclockwise")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.gray)
-                    .cornerRadius(12)
+        VStack(spacing: 12) {
+            HStack(spacing: 20) {
+                // Reset Button
+                Button(action: {
+                    timerManager.reset()
+                }) {
+                    Label("Reset", systemImage: "arrow.counterclockwise")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.gray)
+                        .cornerRadius(12)
+                }
+
+                // Start/Pause/Resume Button
+                Button(action: {
+                    handleMainButtonTap()
+                }) {
+                    Label(mainButtonTitle, systemImage: mainButtonIcon)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(mainButtonColor)
+                        .cornerRadius(12)
+                }
             }
 
-            // Start/Pause/Resume Button
+            // Exit Button
             Button(action: {
-                handleMainButtonTap()
+                timerManager.stop()
             }) {
-                Label(mainButtonTitle, systemImage: mainButtonIcon)
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(mainButtonColor)
-                    .cornerRadius(12)
+                Label("Exit Timer", systemImage: "xmark.circle")
+                    .font(.subheadline)
+                    .foregroundColor(.red)
             }
+            .padding(.top, 8)
         }
         .padding(.horizontal)
     }
