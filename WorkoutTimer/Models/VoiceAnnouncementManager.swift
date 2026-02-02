@@ -177,9 +177,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         }
 
         stop()
-        countdownCompletion = completion
-        announcementQueue = ["3", "2", "1", "Go!"]
-        processNextAnnouncement()
+        startPreciseCountdown(endWord: "Go!", completion: completion)
     }
 
     /// Announces interval timer work ending (going to rest) with countdown
@@ -190,9 +188,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         }
 
         stop()
-        countdownCompletion = completion
-        announcementQueue = ["3", "2", "1", "Stop"]
-        processNextAnnouncement()
+        startPreciseCountdown(endWord: "Stop", completion: completion)
     }
 
     /// Announces interval timer rest ending (going to work) with countdown
@@ -203,9 +199,68 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         }
 
         stop()
+        startPreciseCountdown(endWord: "Go!", completion: completion)
+    }
+
+    /// Starts a precise 1-second interval countdown: 3, 2, 1, [endWord]
+    private func startPreciseCountdown(endWord: String, completion: (() -> Void)?) {
+        countdownTimer?.invalidate()
         countdownCompletion = completion
-        announcementQueue = ["3", "2", "1", "Go!"]
-        processNextAnnouncement()
+
+        var countdownValue = 3
+        let countdownSequence = ["3", "2", "1", endWord]
+        var currentIndex = 0
+
+        // Speak "3" immediately
+        speakCountdownWord(countdownSequence[currentIndex])
+        currentIndex += 1
+
+        // Schedule timer for remaining words at exactly 1 second intervals
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+
+            if currentIndex < countdownSequence.count {
+                let word = countdownSequence[currentIndex]
+                self.speakCountdownWord(word)
+
+                // If this is the final word (Go! or Stop), trigger completion immediately
+                if currentIndex == countdownSequence.count - 1 {
+                    timer.invalidate()
+                    self.countdownTimer = nil
+                    // Call completion immediately when final word starts
+                    if let comp = self.countdownCompletion {
+                        self.countdownCompletion = nil
+                        comp()
+                    }
+                }
+                currentIndex += 1
+            } else {
+                timer.invalidate()
+                self.countdownTimer = nil
+            }
+        }
+    }
+
+    /// Speaks a single countdown word without delays
+    private func speakCountdownWord(_ word: String) {
+        let utterance = AVSpeechUtterance(string: word)
+        utterance.voice = currentVoice ?? findBestAvailableVoice() ?? AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = 0.52  // Slightly faster for crisp countdown
+        utterance.volume = volume
+        utterance.preUtteranceDelay = 0
+        utterance.postUtteranceDelay = 0
+
+        // Emphasize Go! and Stop
+        if ["Go!", "Stop"].contains(word) {
+            utterance.pitchMultiplier = 1.15
+        } else {
+            utterance.pitchMultiplier = 1.05
+        }
+
+        speechSynthesizer.speak(utterance)
     }
 
     /// Plays a bell/ding sound for transitions
