@@ -8,6 +8,7 @@
 import SwiftUI
 import CoreData
 import UIKit
+import Combine
 
 struct AddExerciseView: View {
     @Environment(\.managedObjectContext) private var viewContext
