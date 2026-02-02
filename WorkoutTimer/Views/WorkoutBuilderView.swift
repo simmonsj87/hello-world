@@ -198,7 +198,7 @@ struct WorkoutBuilderView: View {
                     Spacer()
                     Text(restBetweenExercises == 0 ? "None" : "\(restBetweenExercises) sec")
                         .fontWeight(.bold)
-                        .foregroundColor(.yellow)
+                        .foregroundColor(.orange)
                 }
 
                 Slider(value: Binding(

@@ -511,15 +511,53 @@ struct RandomWorkoutGeneratorView: View {
         // Shuffle the final list for variety
         generatedExercises = selected.shuffled()
 
+        // If using target duration, adjust rounds to fit
+        if useDuration {
+            adjustRoundsForTargetDuration()
+        }
+
         withAnimation {
             showingPreview = true
         }
     }
 
+    private func adjustRoundsForTargetDuration() {
+        guard !generatedExercises.isEmpty else { return }
+
+        let targetTimeSeconds = targetDuration * 60
+        let exerciseCount = generatedExercises.count
+
+        // Calculate time for a single round
+        let singleRoundExerciseTime = exerciseCount * exerciseDuration
+        let singleRoundRestTime = max(0, exerciseCount - 1) * restBetweenExercises
+        let singleRoundTime = singleRoundExerciseTime + singleRoundRestTime
+
+        // Try different round counts and find the best fit
+        var bestRounds = 1
+        var closestDiff = Int.max
+
+        for testRounds in 1...10 {
+            let totalTime = singleRoundTime * testRounds + max(0, testRounds - 1) * restBetweenRounds
+            let diff = abs(totalTime - targetTimeSeconds)
+            if diff < closestDiff {
+                closestDiff = diff
+                bestRounds = testRounds
+            }
+        }
+
+        rounds = bestRounds
+    }
+
     private func calculateCountsForDuration(availableByCategory: [String: [Exercise]]) -> [(String, Int)] {
         let totalTimeSeconds = targetDuration * 60
-        let timePerExercise = exerciseDuration + restBetweenExercises
-        let maxExercises = max(1, totalTimeSeconds / timePerExercise)
+
+        // Calculate time per exercise including rest
+        let timePerExerciseWithRest = exerciseDuration + restBetweenExercises
+
+        // Start with 1 round to calculate base exercise count
+        // We'll adjust rounds later after exercises are selected
+        let effectiveTime = totalTimeSeconds
+        let maxExercises = max(1, effectiveTime / timePerExerciseWithRest)
 
         // Get category distribution ratios
         let totalRequested = totalExercisesFromCategories

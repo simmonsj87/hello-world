@@ -22,6 +22,8 @@ struct ExerciseListView: View {
     private var exercises: FetchedResults<Exercise>
 
     @State private var searchText = ""
+    @State private var selectedCategoryFilter = "All"
+    @State private var selectedEquipmentFilter = "All"
     @State private var showingAddExercise = false
     @State private var exerciseToEdit: Exercise?
     @State private var showDisabled = true
@@ -32,6 +34,17 @@ struct ExerciseListView: View {
     @State private var showingImportError = false
     @State private var importErrorMessage = ""
 
+    private var availableCategories: [String] {
+        let categories = Set(exercises.compactMap { $0.category })
+        return ["All"] + categories.sorted()
+    }
+
+    private var availableEquipment: [String] {
+        var equipment = Set(exercises.compactMap { $0.equipment })
+        equipment.insert("No Equipment")
+        return ["All"] + equipment.sorted()
+    }
+
     private var filteredExercises: [Exercise] {
         var result = Array(exercises)
 
@@ -40,11 +53,22 @@ struct ExerciseListView: View {
             result = result.filter { $0.isEnabled }
         }
 
+        // Filter by category
+        if selectedCategoryFilter != "All" {
+            result = result.filter { $0.wrappedCategory == selectedCategoryFilter }
+        }
+
+        // Filter by equipment
+        if selectedEquipmentFilter != "All" {
+            result = result.filter { $0.wrappedEquipment == selectedEquipmentFilter }
+        }
+
         // Filter by search text
         if !searchText.isEmpty {
             result = result.filter { exercise in
                 exercise.wrappedName.localizedCaseInsensitiveContains(searchText) ||
-                exercise.wrappedCategory.localizedCaseInsensitiveContains(searchText)
+                exercise.wrappedCategory.localizedCaseInsensitiveContains(searchText) ||
+                exercise.wrappedEquipment.localizedCaseInsensitiveContains(searchText)
             }
         }
 
@@ -57,6 +81,10 @@ struct ExerciseListView: View {
 
     private var sortedCategories: [String] {
         groupedExercises.keys.sorted()
+    }
+
+    private var hasActiveFilters: Bool {
+        selectedCategoryFilter != "All" || selectedEquipmentFilter != "All"
     }
 
     var body: some View {
@@ -75,6 +103,38 @@ struct ExerciseListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Menu {
+                        // Category Filter
+                        Menu {
+                            ForEach(availableCategories, id: \.self) { category in
+                                Button(action: { selectedCategoryFilter = category }) {
+                                    if selectedCategoryFilter == category {
+                                        Label(category, systemImage: "checkmark")
+                                    } else {
+                                        Text(category)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Label("Category: \(selectedCategoryFilter)", systemImage: "folder")
+                        }
+
+                        // Equipment Filter
+                        Menu {
+                            ForEach(availableEquipment, id: \.self) { equipment in
+                                Button(action: { selectedEquipmentFilter = equipment }) {
+                                    if selectedEquipmentFilter == equipment {
+                                        Label(equipment, systemImage: "checkmark")
+                                    } else {
+                                        Text(equipment)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Label("Equipment: \(selectedEquipmentFilter)", systemImage: "dumbbell")
+                        }
+
+                        Divider()
+
                         Toggle("Show Disabled", isOn: $showDisabled)
 
                         Divider()
@@ -82,8 +142,19 @@ struct ExerciseListView: View {
                         Button(action: { showingImportPicker = true }) {
                             Label("Import Exercises", systemImage: "square.and.arrow.down")
                         }
+
+                        if selectedCategoryFilter != "All" || selectedEquipmentFilter != "All" {
+                            Divider()
+
+                            Button(action: {
+                                selectedCategoryFilter = "All"
+                                selectedEquipmentFilter = "All"
+                            }) {
+                                Label("Clear Filters", systemImage: "xmark.circle")
+                            }
+                        }
                     } label: {
-                        Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                        Label("Filter", systemImage: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                     }
                 }
 
@@ -379,6 +450,13 @@ struct ExerciseRow: View {
     let onToggleEnabled: () -> Void
     let onEdit: () -> Void
 
+    private var equipmentIcon: String {
+        if let builtIn = Equipment(rawValue: exercise.wrappedEquipment) {
+            return builtIn.icon
+        }
+        return "wrench.and.screwdriver"
+    }
+
     var body: some View {
         Button(action: onEdit) {
             HStack(spacing: 12) {
@@ -392,10 +470,23 @@ struct ExerciseRow: View {
                     Text(exercise.wrappedName)
                         .font(.headline)
                         .foregroundColor(exercise.isEnabled ? .primary : .secondary)
-                    if let date = exercise.createdDate {
-                        Text("Added \(date, formatter: dateFormatter)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+
+                    HStack(spacing: 8) {
+                        if exercise.wrappedEquipment != "No Equipment" {
+                            HStack(spacing: 4) {
+                                Image(systemName: equipmentIcon)
+                                    .font(.caption2)
+                                Text(exercise.wrappedEquipment)
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.orange)
+                        }
+
+                        if let date = exercise.createdDate {
+                            Text("Added \(date, formatter: dateFormatter)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
 

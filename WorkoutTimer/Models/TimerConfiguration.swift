@@ -46,3 +46,72 @@ struct TimerConfiguration: Codable, Equatable {
         return String(format: "%d:%02d", minutes, seconds)
     }
 }
+
+// MARK: - Saved Timer Preset
+
+struct SavedTimerPreset: Codable, Identifiable, Equatable {
+    let id: UUID
+    var name: String
+    var configuration: TimerConfiguration
+    var createdDate: Date
+
+    init(name: String, configuration: TimerConfiguration) {
+        self.id = UUID()
+        self.name = name
+        self.configuration = configuration
+        self.createdDate = Date()
+    }
+}
+
+// MARK: - Timer Presets Manager
+
+class TimerPresetsManager: ObservableObject {
+    static let shared = TimerPresetsManager()
+
+    private let key = "savedTimerPresets"
+
+    @Published var presets: [SavedTimerPreset] = []
+
+    private init() {
+        load()
+    }
+
+    func save(_ preset: SavedTimerPreset) {
+        // Check if a preset with the same name already exists
+        if let index = presets.firstIndex(where: { $0.name == preset.name }) {
+            presets[index] = preset
+        } else {
+            presets.append(preset)
+        }
+        persist()
+    }
+
+    func delete(_ preset: SavedTimerPreset) {
+        presets.removeAll { $0.id == preset.id }
+        persist()
+    }
+
+    func delete(at offsets: IndexSet) {
+        presets.remove(atOffsets: offsets)
+        persist()
+    }
+
+    private func load() {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return }
+
+        do {
+            presets = try JSONDecoder().decode([SavedTimerPreset].self, from: data)
+        } catch {
+            print("Error loading timer presets: \(error)")
+        }
+    }
+
+    private func persist() {
+        do {
+            let data = try JSONEncoder().encode(presets)
+            UserDefaults.standard.set(data, forKey: key)
+        } catch {
+            print("Error saving timer presets: \(error)")
+        }
+    }
+}
