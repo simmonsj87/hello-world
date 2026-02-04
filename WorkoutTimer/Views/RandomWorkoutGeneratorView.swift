@@ -527,40 +527,27 @@ struct RandomWorkoutGeneratorView: View {
         let targetTimeSeconds = targetDuration * 60
         let exerciseCount = generatedExercises.count
 
-        // Try different combinations of rounds, exercise duration, and rest
-        // to find the best fit for the target duration
-        var bestConfig: (rounds: Int, exerciseDuration: Int, restBetweenExercises: Int, restBetweenRounds: Int) = (1, 30, 15, 60)
+        // Calculate time for a single round using user-configured exercise duration and rest
+        let singleRoundExerciseTime = exerciseCount * exerciseDuration
+        let singleRoundRestTime = max(0, exerciseCount - 1) * restBetweenExercises
+        let singleRoundTime = singleRoundExerciseTime + singleRoundRestTime
+
+        // Find the best number of rounds to match the target duration
+        var bestRounds = 1
         var closestDiff = Int.max
 
-        // Try different round counts
-        for testRounds in 1...10 {
-            // Try different exercise durations (15-60 seconds in steps of 5)
-            for testExerciseDuration in stride(from: 15, through: 60, by: 5) {
-                // Try different rest between exercises (5-30 seconds in steps of 5)
-                for testRestBetween in stride(from: 5, through: 30, by: 5) {
-                    // Calculate rest between rounds (roughly 2x rest between exercises, capped at 90)
-                    let testRestBetweenRounds = min(90, testRestBetween * 2)
+        for testRounds in 1...20 {
+            let totalTime = singleRoundTime * testRounds + max(0, testRounds - 1) * restBetweenRounds
+            let diff = abs(totalTime - targetTimeSeconds)
 
-                    // Calculate total time for this configuration
-                    let singleRoundExerciseTime = exerciseCount * testExerciseDuration
-                    let singleRoundRestTime = max(0, exerciseCount - 1) * testRestBetween
-                    let singleRoundTime = singleRoundExerciseTime + singleRoundRestTime
-                    let totalTime = singleRoundTime * testRounds + max(0, testRounds - 1) * testRestBetweenRounds
-
-                    let diff = abs(totalTime - targetTimeSeconds)
-                    if diff < closestDiff {
-                        closestDiff = diff
-                        bestConfig = (testRounds, testExerciseDuration, testRestBetween, testRestBetweenRounds)
-                    }
-                }
+            if diff < closestDiff {
+                closestDiff = diff
+                bestRounds = testRounds
             }
         }
 
-        // Apply the best configuration
-        rounds = bestConfig.rounds
-        exerciseDuration = bestConfig.exerciseDuration
-        restBetweenExercises = bestConfig.restBetweenExercises
-        restBetweenRounds = bestConfig.restBetweenRounds
+        // Only adjust rounds - keep user-configured exercise duration and rest times
+        rounds = bestRounds
     }
 
     private func calculateCountsForDuration(availableByCategory: [String: [Exercise]]) -> [(String, Int)] {

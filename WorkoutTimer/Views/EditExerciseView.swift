@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreData
+import Combine
 
 struct EditExerciseView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -22,12 +23,20 @@ struct EditExerciseView: View {
 
     @State private var exerciseName: String = ""
     @State private var selectedCategory: String = ""
+    @State private var selectedEquipment: String = "No Equipment"
     @State private var isEnabled: Bool = true
     @State private var showingAddCategory = false
+    @State private var showingAddEquipment = false
     @State private var showingDeleteConfirmation = false
 
     private var categoryNames: [String] {
         categories.compactMap { $0.name }
+    }
+
+    private var equipmentNames: [String] {
+        var names = Equipment.allCases.map { $0.rawValue }
+        names.append(contentsOf: CustomEquipmentManager.shared.customEquipment)
+        return names.sorted()
     }
 
     private var isFormValid: Bool {
@@ -37,6 +46,7 @@ struct EditExerciseView: View {
     private var hasChanges: Bool {
         exerciseName != exercise.wrappedName ||
         selectedCategory != exercise.wrappedCategory ||
+        selectedEquipment != exercise.wrappedEquipment ||
         isEnabled != exercise.isEnabled
     }
 
@@ -53,6 +63,12 @@ struct EditExerciseView: View {
                         }
                     }
 
+                    Picker("Equipment", selection: $selectedEquipment) {
+                        ForEach(equipmentNames, id: \.self) { equipment in
+                            Label(equipment, systemImage: equipmentIcon(for: equipment)).tag(equipment)
+                        }
+                    }
+
                     Toggle("Enabled", isOn: $isEnabled)
                 }
 
@@ -62,6 +78,14 @@ struct EditExerciseView: View {
                             Image(systemName: "plus.circle.fill")
                                 .foregroundColor(.green)
                             Text("Add Custom Category")
+                        }
+                    }
+
+                    Button(action: { showingAddEquipment = true }) {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(.orange)
+                            Text("Add Custom Equipment")
                         }
                     }
                 }
@@ -102,6 +126,11 @@ struct EditExerciseView: View {
                     selectedCategory = newCategory
                 }
             }
+            .sheet(isPresented: $showingAddEquipment) {
+                AddEquipmentView { newEquipment in
+                    selectedEquipment = newEquipment
+                }
+            }
             .alert("Delete Exercise?", isPresented: $showingDeleteConfirmation) {
                 Button("Delete", role: .destructive) {
                     deleteExercise()
@@ -119,6 +148,7 @@ struct EditExerciseView: View {
     private func loadExerciseData() {
         exerciseName = exercise.wrappedName
         selectedCategory = exercise.wrappedCategory
+        selectedEquipment = exercise.wrappedEquipment
         isEnabled = exercise.isEnabled
     }
 
@@ -129,6 +159,7 @@ struct EditExerciseView: View {
         withAnimation {
             exercise.name = trimmedName
             exercise.category = selectedCategory
+            exercise.equipment = selectedEquipment
             exercise.isEnabled = isEnabled
 
             do {
@@ -139,6 +170,13 @@ struct EditExerciseView: View {
                 print("Error saving exercise: \(nsError), \(nsError.userInfo)")
             }
         }
+    }
+
+    private func equipmentIcon(for equipment: String) -> String {
+        if let builtIn = Equipment(rawValue: equipment) {
+            return builtIn.icon
+        }
+        return "wrench.and.screwdriver"
     }
 
     private func deleteExercise() {
