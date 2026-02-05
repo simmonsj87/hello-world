@@ -133,10 +133,10 @@ struct WorkoutBuilderView: View {
                 .fontWeight(.semibold)
                 .foregroundColor(.secondary)
 
-            // Rounds
+            // Rounds/Sets
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Label("Rounds", systemImage: "repeat")
+                    Label(executionMode == .sequential ? "Sets" : "Rounds", systemImage: "repeat")
                     Spacer()
                     Text("\(rounds)")
                         .fontWeight(.semibold)
@@ -209,10 +209,10 @@ struct WorkoutBuilderView: View {
 
             Divider()
 
-            // Rest Between Rounds
+            // Rest Between Rounds/Sets
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Label("Rest Between Rounds", systemImage: "arrow.counterclockwise")
+                    Label(executionMode == .sequential ? "Rest Between Sets" : "Rest Between Rounds", systemImage: "arrow.counterclockwise")
                     Spacer()
                     Text(restBetweenRounds == 0 ? "None" : "\(restBetweenRounds) sec")
                         .fontWeight(.bold)
@@ -456,7 +456,7 @@ enum ExecutionMode: String, CaseIterable {
     var description: String {
         switch self {
         case .sequential:
-            return "Complete all rounds of each exercise before moving to the next"
+            return "Complete all sets of each exercise, then move to the next"
         case .roundRobin:
             return "Cycle through all exercises once per round"
         }
