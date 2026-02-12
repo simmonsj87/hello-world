@@ -123,7 +123,21 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     func speak(_ text: String) {
         guard isEnabled else { return }
 
+        // Ensure audio session is active before speaking
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setActive(true)
+        } catch {
+            print("Failed to activate audio session: \(error.localizedDescription)")
+        }
+
         let utterance = createUtterance(for: text)
+
+        // Stop any current speech before starting new
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
+        }
+
         speechSynthesizer.speak(utterance)
     }
 
@@ -404,9 +418,27 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
 
     private func createUtterance(for text: String) -> AVSpeechUtterance {
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = currentVoice ?? findBestAvailableVoice() ?? AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = rate
-        utterance.volume = volume
+
+        // Get voice with fallback chain
+        var voice = currentVoice
+        if voice == nil {
+            voice = findBestAvailableVoice()
+        }
+        if voice == nil {
+            voice = AVSpeechSynthesisVoice(language: "en-US")
+        }
+        if voice == nil {
+            // Final fallback - get any available voice
+            voice = AVSpeechSynthesisVoice.speechVoices().first
+        }
+        utterance.voice = voice
+
+        // Ensure rate and volume are within valid ranges
+        let safeRate = min(max(rate, AVSpeechUtteranceMinimumSpeechRate), AVSpeechUtteranceMaximumSpeechRate)
+        let safeVolume = min(max(volume, 0.0), 1.0)
+
+        utterance.rate = safeRate
+        utterance.volume = safeVolume
 
         // Adjust pitch based on content for more dynamic sound
         if ["Go!", "Stop!"].contains(text) {

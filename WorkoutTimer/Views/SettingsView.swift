@@ -34,6 +34,8 @@ struct SettingsView: View {
     @State private var importErrorMessage = ""
     @State private var exportURL: URL?
     @State private var exportedJSONString: String = ""
+    @State private var showingDeleteAllExercisesAlert = false
+    @State private var showingDeleteAllWorkoutsAlert = false
 
     var body: some View {
         NavigationView {
@@ -88,6 +90,22 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(importErrorMessage)
+        }
+        .alert("Delete All Exercises?", isPresented: $showingDeleteAllExercisesAlert) {
+            Button("Delete All", role: .destructive) {
+                deleteAllExercises()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will permanently delete all \(exercises.count) exercises. This action cannot be undone.")
+        }
+        .alert("Delete All Workouts?", isPresented: $showingDeleteAllWorkoutsAlert) {
+            Button("Delete All", role: .destructive) {
+                deleteAllWorkouts()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will permanently delete all \(workouts.count) workouts. This action cannot be undone.")
         }
     }
 
@@ -374,6 +392,26 @@ struct SettingsView: View {
                     title: "Reset All Settings"
                 )
             }
+
+            // Delete All Exercises
+            Button(role: .destructive, action: { showingDeleteAllExercisesAlert = true }) {
+                SettingsRowLabel(
+                    icon: "trash.fill",
+                    iconColor: .red,
+                    title: "Delete All Exercises"
+                )
+            }
+            .disabled(exercises.isEmpty)
+
+            // Delete All Workouts
+            Button(role: .destructive, action: { showingDeleteAllWorkoutsAlert = true }) {
+                SettingsRowLabel(
+                    icon: "trash.fill",
+                    iconColor: .red,
+                    title: "Delete All Workouts"
+                )
+            }
+            .disabled(workouts.isEmpty)
         } header: {
             SectionHeader(icon: "externaldrive.fill", title: "DATA MANAGEMENT")
         }
@@ -445,11 +483,19 @@ struct SettingsView: View {
     // MARK: - Actions
 
     private func testVoice() {
-        voiceManager.isEnabled = settings.voiceEnabled
+        // Temporarily enable voice for testing
+        voiceManager.isEnabled = true
         voiceManager.selectedVoiceIdentifier = settings.selectedVoiceIdentifier
         voiceManager.rate = settings.speechRate
-        voiceManager.volume = settings.speechVolume
-        voiceManager.speak("This is how your voice announcements will sound during workouts. Starting exercise in 3, 2, 1, go!")
+        voiceManager.volume = max(0.1, settings.speechVolume)  // Ensure minimum volume for test
+
+        // Stop any existing speech first
+        voiceManager.stop()
+
+        // Use a shorter test message
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.voiceManager.speak("Testing voice. 3, 2, 1, go!")
+        }
     }
 
     private func saveQuickStartPreset() {
@@ -618,6 +664,32 @@ struct SettingsView: View {
     private func openFeedback() {
         if let url = URL(string: "mailto:feedback@workouttimer.app") {
             UIApplication.shared.open(url)
+        }
+    }
+
+    private func deleteAllExercises() {
+        for exercise in exercises {
+            viewContext.delete(exercise)
+        }
+
+        do {
+            try viewContext.save()
+            settings.triggerNotificationHaptic(.success)
+        } catch {
+            print("Error deleting all exercises: \(error)")
+        }
+    }
+
+    private func deleteAllWorkouts() {
+        for workout in workouts {
+            viewContext.delete(workout)
+        }
+
+        do {
+            try viewContext.save()
+            settings.triggerNotificationHaptic(.success)
+        } catch {
+            print("Error deleting all workouts: \(error)")
         }
     }
 }

@@ -24,6 +24,7 @@ struct WorkoutBuilderView: View {
     @State private var timePerExercise: Int = 30
     @State private var restBetweenExercises: Int = 15
     @State private var restBetweenRounds: Int = 60
+    @State private var warmupDuration: Int = 0  // in minutes
     @State private var executionMode: ExecutionMode = .sequential
 
     // UI State
@@ -40,12 +41,13 @@ struct WorkoutBuilderView: View {
 
     private var totalDuration: Int {
         guard !selectedExercises.isEmpty else { return 0 }
+        let warmupTime = warmupDuration * 60
         let exerciseTime = selectedExercises.count * timePerExercise
         let exerciseRestTime = max(0, selectedExercises.count - 1) * restBetweenExercises
         let roundTime = exerciseTime + exerciseRestTime
         let totalRoundTime = roundTime * rounds
         let roundRestTime = max(0, rounds - 1) * restBetweenRounds
-        return totalRoundTime + roundRestTime
+        return warmupTime + totalRoundTime + roundRestTime
     }
 
     private var formattedTotalDuration: String {
@@ -132,6 +134,35 @@ struct WorkoutBuilderView: View {
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundColor(.secondary)
+
+            // Warmup Timer
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Warmup", systemImage: "flame")
+                    Spacer()
+                    Text(warmupDuration == 0 ? "None" : "\(warmupDuration) min")
+                        .fontWeight(.bold)
+                        .foregroundColor(.orange)
+                }
+
+                HStack(spacing: 6) {
+                    ForEach([0, 1, 2, 3, 5, 10, 15], id: \.self) { mins in
+                        Button(action: { warmupDuration = mins }) {
+                            Text(mins == 0 ? "Off" : "\(mins)")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(warmupDuration == mins ? Color.orange : Color(.tertiarySystemBackground))
+                                .foregroundColor(warmupDuration == mins ? .white : .primary)
+                                .cornerRadius(6)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            Divider()
 
             // Rounds/Sets
             VStack(alignment: .leading, spacing: 8) {
@@ -378,6 +409,7 @@ struct WorkoutBuilderView: View {
         timePerExercise = Int(workout.timePerExercise)
         restBetweenExercises = Int(workout.restBetweenExercises)
         restBetweenRounds = Int(workout.restBetweenRounds)
+        warmupDuration = Int(workout.warmupDuration)
         executionMode = workout.isRoundRobin ? .roundRobin : .sequential
 
         selectedExercises = workout.workoutExercisesArray.compactMap { workoutExercise in
@@ -415,6 +447,7 @@ struct WorkoutBuilderView: View {
             workout.timePerExercise = Int32(timePerExercise)
             workout.restBetweenExercises = Int32(restBetweenExercises)
             workout.restBetweenRounds = Int32(restBetweenRounds)
+            workout.warmupDuration = Int32(warmupDuration)
             workout.executionMode = executionMode.rawValue
 
             // Create new workout exercises

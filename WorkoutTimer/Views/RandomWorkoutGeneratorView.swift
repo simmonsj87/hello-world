@@ -31,17 +31,14 @@ struct RandomWorkoutGeneratorView: View {
     @State private var targetDuration: Int = 20 // minutes
     @State private var targetExerciseCount: Int = 8
 
-    // Category distribution
-    @State private var upperBodyCount: Int = 2
-    @State private var lowerBodyCount: Int = 2
-    @State private var coreCount: Int = 2
-    @State private var cardioCount: Int = 1
-    @State private var fullBodyCount: Int = 1
+    // Dynamic category counts - stored as dictionary
+    @State private var categoryCounts: [String: Int] = [:]
 
     // Exercise settings
     @State private var exerciseDuration: Int = 30
     @State private var restBetweenExercises: Int = 15
     @State private var restBetweenRounds: Int = 60
+    @State private var warmupDuration: Int = 0  // 0-15 minutes
     @State private var avoidRecentExercises = true
 
     // Rounds and execution mode
@@ -61,18 +58,25 @@ struct RandomWorkoutGeneratorView: View {
 
     // MARK: - Computed Properties
 
+    /// All unique categories from exercises in the database
+    private var availableCategories: [String] {
+        let categories = Set(allExercises.filter { $0.isEnabled }.compactMap { $0.category })
+        return categories.sorted()
+    }
+
     private var totalExercisesFromCategories: Int {
-        upperBodyCount + lowerBodyCount + coreCount + cardioCount + fullBodyCount
+        categoryCounts.values.reduce(0, +)
     }
 
     private var totalWorkoutTime: Int {
         guard !generatedExercises.isEmpty else { return 0 }
+        let warmupTime = warmupDuration * 60
         let exerciseTime = generatedExercises.count * exerciseDuration
         let exerciseRestTime = max(0, generatedExercises.count - 1) * restBetweenExercises
         let roundTime = exerciseTime + exerciseRestTime
         let totalRoundTime = roundTime * rounds
         let roundRestTime = max(0, rounds - 1) * restBetweenRounds
-        return totalRoundTime + roundRestTime
+        return warmupTime + totalRoundTime + roundRestTime
     }
 
     private var formattedTotalTime: String {
@@ -82,13 +86,7 @@ struct RandomWorkoutGeneratorView: View {
     }
 
     private var categoryDistribution: [(String, Int)] {
-        [
-            ("Upper Body", upperBodyCount),
-            ("Lower Body", lowerBodyCount),
-            ("Core", coreCount),
-            ("Cardio", cardioCount),
-            ("Full Body", fullBodyCount)
-        ].filter { $0.1 > 0 }
+        categoryCounts.filter { $0.value > 0 }.map { ($0.key, $0.value) }.sorted { $0.0 < $1.0 }
     }
 
     var body: some View {
@@ -142,6 +140,20 @@ struct RandomWorkoutGeneratorView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onAppear {
+                initializeCategoryCounts()
+            }
+        }
+    }
+
+    /// Initialize category counts with defaults for available categories
+    private func initializeCategoryCounts() {
+        guard categoryCounts.isEmpty else { return }
+
+        for category in availableCategories {
+            // Set default of 1 for each category, or 0 if no exercises available
+            let available = exerciseCount(for: category)
+            categoryCounts[category] = available > 0 ? 1 : 0
         }
     }
 
@@ -151,19 +163,34 @@ struct RandomWorkoutGeneratorView: View {
         Group {
             // Category Distribution (Number of Exercises) - First
             Section {
-                CategoryStepperRow(title: "Upper Body", count: $upperBodyCount, available: exerciseCount(for: "Upper Body"))
-                CategoryStepperRow(title: "Lower Body", count: $lowerBodyCount, available: exerciseCount(for: "Lower Body"))
-                CategoryStepperRow(title: "Core", count: $coreCount, available: exerciseCount(for: "Core"))
-                CategoryStepperRow(title: "Cardio", count: $cardioCount, available: exerciseCount(for: "Cardio"))
-                CategoryStepperRow(title: "Full Body", count: $fullBodyCount, available: exerciseCount(for: "Full Body"))
+                if availableCategories.isEmpty {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("No exercises found. Add exercises in the Exercises tab first.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    ForEach(availableCategories, id: \.self) { category in
+                        DynamicCategoryStepperRow(
+                            title: category,
+                            count: Binding(
+                                get: { categoryCounts[category] ?? 0 },
+                                set: { categoryCounts[category] = $0 }
+                            ),
+                            available: exerciseCount(for: category)
+                        )
+                    }
 
-                HStack {
-                    Text("Total Exercises")
-                        .fontWeight(.semibold)
-                    Spacer()
-                    Text("\(totalExercisesFromCategories)")
-                        .fontWeight(.bold)
-                        .foregroundColor(.accentColor)
+                    HStack {
+                        Text("Total Exercises")
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text("\(totalExercisesFromCategories)")
+                            .fontWeight(.bold)
+                            .foregroundColor(.accentColor)
+                    }
                 }
             } header: {
                 Text("Number of Exercises")
@@ -245,6 +272,32 @@ struct RandomWorkoutGeneratorView: View {
 
             // Timing Settings
             Section {
+                // Warmup Timer
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("Warmup", systemImage: "flame")
+                        Spacer()
+                        Text(warmupDuration == 0 ? "None" : "\(warmupDuration) min")
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack(spacing: 6) {
+                        ForEach([0, 1, 2, 3, 5, 10, 15], id: \.self) { mins in
+                            Button(action: { warmupDuration = mins }) {
+                                Text(mins == 0 ? "Off" : "\(mins)")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 6)
+                                    .background(warmupDuration == mins ? Color.orange : Color(.tertiarySystemBackground))
+                                    .foregroundColor(warmupDuration == mins ? .white : .primary)
+                                    .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Time Per Exercise")
@@ -328,6 +381,16 @@ struct RandomWorkoutGeneratorView: View {
         Group {
             // Summary
             Section {
+                if warmupDuration > 0 {
+                    HStack {
+                        Label("Warmup", systemImage: "flame")
+                        Spacer()
+                        Text("\(warmupDuration) min")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.orange)
+                    }
+                }
+
                 HStack {
                     Label("Exercises", systemImage: "figure.mixed.cardio")
                     Spacer()
@@ -612,6 +675,7 @@ struct RandomWorkoutGeneratorView: View {
         workout.timePerExercise = Int32(exerciseDuration)
         workout.restBetweenExercises = Int32(restBetweenExercises)
         workout.restBetweenRounds = Int32(restBetweenRounds)
+        workout.warmupDuration = Int32(warmupDuration)
         workout.executionMode = executionMode.rawValue
 
         for (index, generated) in generatedExercises.enumerated() {
@@ -638,9 +702,9 @@ struct GeneratedExercise: Identifiable, Equatable {
     }
 }
 
-// MARK: - Category Stepper Row
+// MARK: - Dynamic Category Stepper Row
 
-struct CategoryStepperRow: View {
+struct DynamicCategoryStepperRow: View {
     let title: String
     @Binding var count: Int
     let available: Int
@@ -650,13 +714,36 @@ struct CategoryStepperRow: View {
         count < min(maxLimit, available)
     }
 
+    private var categoryIcon: String {
+        switch title {
+        case "Upper Body":
+            return "figure.arms.open"
+        case "Lower Body":
+            return "figure.walk"
+        case "Core":
+            return "figure.core.training"
+        case "Cardio":
+            return "heart.fill"
+        case "Full Body":
+            return "figure.mixed.cardio"
+        default:
+            return "figure.strengthtraining.traditional"
+        }
+    }
+
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text("\(available) available")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+            HStack(spacing: 8) {
+                Image(systemName: categoryIcon)
+                    .foregroundColor(.accentColor)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                    Text("\(available) available")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
 
             Spacer()

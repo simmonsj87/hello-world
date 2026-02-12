@@ -21,6 +21,7 @@ extension Workout {
     @NSManaged public var timePerExercise: Int32
     @NSManaged public var restBetweenExercises: Int32
     @NSManaged public var restBetweenRounds: Int32
+    @NSManaged public var warmupDuration: Int32  // in minutes
     @NSManaged public var executionMode: String?
     @NSManaged public var workoutExercises: NSSet?
 
@@ -99,12 +100,13 @@ extension Workout {
 
     /// Calculated total workout duration based on settings.
     public var calculatedTotalDuration: Int32 {
+        let warmupTime = warmupDuration * 60  // Convert minutes to seconds
         let exerciseTime = timePerExercise * Int32(workoutExercisesArray.count)
         let restTime = restBetweenExercises * Int32(max(0, workoutExercisesArray.count - 1))
         let roundTime = exerciseTime + restTime
         let totalRoundTime = roundTime * Int32(rounds)
         let roundRestTime = restBetweenRounds * Int32(max(0, Int(rounds) - 1))
-        return totalRoundTime + roundRestTime
+        return warmupTime + totalRoundTime + roundRestTime
     }
 
     /// Formatted calculated duration string.

@@ -35,6 +35,9 @@ struct ExerciseListView: View {
     @State private var showingImportSuccess = false
     @State private var showingImportError = false
     @State private var importErrorMessage = ""
+    @State private var isSelectionMode = false
+    @State private var selectedExercises: Set<UUID> = []
+    @State private var showingDeleteSelectedAlert = false
 
     private var availableCategories: [String] {
         let categories = Set(exercises.compactMap { $0.category })
@@ -104,65 +107,90 @@ struct ExerciseListView: View {
             .searchable(text: $searchText, prompt: "Search exercises")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Menu {
-                        // Category Filter
+                    if isSelectionMode {
+                        Button("Cancel") {
+                            isSelectionMode = false
+                            selectedExercises.removeAll()
+                        }
+                    } else {
                         Menu {
-                            ForEach(availableCategories, id: \.self) { category in
-                                Button(action: { selectedCategoryFilter = category }) {
-                                    if selectedCategoryFilter == category {
-                                        Label(category, systemImage: "checkmark")
-                                    } else {
-                                        Text(category)
+                            // Category Filter
+                            Menu {
+                                ForEach(availableCategories, id: \.self) { category in
+                                    Button(action: { selectedCategoryFilter = category }) {
+                                        if selectedCategoryFilter == category {
+                                            Label(category, systemImage: "checkmark")
+                                        } else {
+                                            Text(category)
+                                        }
                                     }
                                 }
+                            } label: {
+                                Label("Category: \(selectedCategoryFilter)", systemImage: "folder")
                             }
-                        } label: {
-                            Label("Category: \(selectedCategoryFilter)", systemImage: "folder")
-                        }
 
-                        // Equipment Filter
-                        Menu {
-                            ForEach(availableEquipment, id: \.self) { equipment in
-                                Button(action: { selectedEquipmentFilter = equipment }) {
-                                    if selectedEquipmentFilter == equipment {
-                                        Label(equipment, systemImage: "checkmark")
-                                    } else {
-                                        Text(equipment)
+                            // Equipment Filter
+                            Menu {
+                                ForEach(availableEquipment, id: \.self) { equipment in
+                                    Button(action: { selectedEquipmentFilter = equipment }) {
+                                        if selectedEquipmentFilter == equipment {
+                                            Label(equipment, systemImage: "checkmark")
+                                        } else {
+                                            Text(equipment)
+                                        }
                                     }
                                 }
+                            } label: {
+                                Label("Equipment: \(selectedEquipmentFilter)", systemImage: "dumbbell")
                             }
-                        } label: {
-                            Label("Equipment: \(selectedEquipmentFilter)", systemImage: "dumbbell")
-                        }
 
-                        Divider()
-
-                        Toggle("Show Disabled", isOn: $showDisabled)
-
-                        Divider()
-
-                        Button(action: { showingImportPicker = true }) {
-                            Label("Import Exercises", systemImage: "square.and.arrow.down")
-                        }
-
-                        if selectedCategoryFilter != "All" || selectedEquipmentFilter != "All" {
                             Divider()
 
-                            Button(action: {
-                                selectedCategoryFilter = "All"
-                                selectedEquipmentFilter = "All"
-                            }) {
-                                Label("Clear Filters", systemImage: "xmark.circle")
+                            Toggle("Show Disabled", isOn: $showDisabled)
+
+                            Divider()
+
+                            Button(action: { showingImportPicker = true }) {
+                                Label("Import Exercises", systemImage: "square.and.arrow.down")
                             }
+
+                            if !exercises.isEmpty {
+                                Divider()
+
+                                Button(action: {
+                                    isSelectionMode = true
+                                    selectedExercises.removeAll()
+                                }) {
+                                    Label("Select Multiple", systemImage: "checkmark.circle")
+                                }
+                            }
+
+                            if selectedCategoryFilter != "All" || selectedEquipmentFilter != "All" {
+                                Divider()
+
+                                Button(action: {
+                                    selectedCategoryFilter = "All"
+                                    selectedEquipmentFilter = "All"
+                                }) {
+                                    Label("Clear Filters", systemImage: "xmark.circle")
+                                }
+                            }
+                        } label: {
+                            Label("Filter", systemImage: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                         }
-                    } label: {
-                        Label("Filter", systemImage: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                     }
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingAddExercise = true }) {
-                        Label("Add Exercise", systemImage: "plus")
+                    if isSelectionMode {
+                        Button(role: .destructive, action: { showingDeleteSelectedAlert = true }) {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .disabled(selectedExercises.isEmpty)
+                    } else {
+                        Button(action: { showingAddExercise = true }) {
+                            Label("Add Exercise", systemImage: "plus")
+                        }
                     }
                 }
             }
@@ -205,6 +233,14 @@ struct ExerciseListView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(importErrorMessage)
+            }
+            .alert("Delete \(selectedExercises.count) Exercises?", isPresented: $showingDeleteSelectedAlert) {
+                Button("Delete", role: .destructive) {
+                    deleteSelectedExercises()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This will permanently delete the selected exercises. This action cannot be undone.")
             }
         }
     }
@@ -258,56 +294,95 @@ struct ExerciseListView: View {
 
     private var exerciseListContent: some View {
         List {
+            if isSelectionMode {
+                // Selection mode header
+                Section {
+                    HStack {
+                        Text("\(selectedExercises.count) selected")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        if selectedExercises.count == filteredExercises.count {
+                            Button("Deselect All") {
+                                selectedExercises.removeAll()
+                            }
+                        } else {
+                            Button("Select All") {
+                                for exercise in filteredExercises {
+                                    if let id = exercise.id {
+                                        selectedExercises.insert(id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             ForEach(sortedCategories, id: \.self) { category in
                 Section(header: CategoryHeader(category: category)) {
                     ForEach(groupedExercises[category] ?? []) { exercise in
-                        ExerciseRow(
-                            exercise: exercise,
-                            onToggleEnabled: { toggleEnabled(exercise) },
-                            onEdit: { exerciseToEdit = exercise }
-                        )
-                        .contextMenu {
-                            Button(action: {
-                                exerciseToShare = exercise
-                                showingShareOptions = true
-                            }) {
-                                Label("Share Exercise", systemImage: "square.and.arrow.up")
-                            }
+                        if isSelectionMode {
+                            SelectableExerciseRow(
+                                exercise: exercise,
+                                isSelected: exercise.id != nil && selectedExercises.contains(exercise.id!),
+                                onToggle: {
+                                    guard let id = exercise.id else { return }
+                                    if selectedExercises.contains(id) {
+                                        selectedExercises.remove(id)
+                                    } else {
+                                        selectedExercises.insert(id)
+                                    }
+                                }
+                            )
+                        } else {
+                            ExerciseRow(
+                                exercise: exercise,
+                                onToggleEnabled: { toggleEnabled(exercise) },
+                                onEdit: { exerciseToEdit = exercise }
+                            )
+                            .contextMenu {
+                                Button(action: {
+                                    exerciseToShare = exercise
+                                    showingShareOptions = true
+                                }) {
+                                    Label("Share Exercise", systemImage: "square.and.arrow.up")
+                                }
 
-                            Button(action: { exerciseToEdit = exercise }) {
-                                Label("Edit", systemImage: "pencil")
-                            }
+                                Button(action: { exerciseToEdit = exercise }) {
+                                    Label("Edit", systemImage: "pencil")
+                                }
 
-                            Button(action: { toggleEnabled(exercise) }) {
-                                Label(
-                                    exercise.isEnabled ? "Disable" : "Enable",
-                                    systemImage: exercise.isEnabled ? "eye.slash" : "eye"
-                                )
-                            }
+                                Button(action: { toggleEnabled(exercise) }) {
+                                    Label(
+                                        exercise.isEnabled ? "Disable" : "Enable",
+                                        systemImage: exercise.isEnabled ? "eye.slash" : "eye"
+                                    )
+                                }
 
-                            Divider()
+                                Divider()
 
-                            Button(role: .destructive, action: { deleteExercise(exercise) }) {
-                                Label("Delete", systemImage: "trash")
+                                Button(role: .destructive, action: { deleteExercise(exercise) }) {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                deleteExercise(exercise)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteExercise(exercise)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
-                        }
-                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                            Button {
-                                toggleEnabled(exercise)
-                            } label: {
-                                Label(
-                                    exercise.isEnabled ? "Disable" : "Enable",
-                                    systemImage: exercise.isEnabled ? "eye.slash" : "eye"
-                                )
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    toggleEnabled(exercise)
+                                } label: {
+                                    Label(
+                                        exercise.isEnabled ? "Disable" : "Enable",
+                                        systemImage: exercise.isEnabled ? "eye.slash" : "eye"
+                                    )
+                                }
+                                .tint(exercise.isEnabled ? .orange : .green)
                             }
-                            .tint(exercise.isEnabled ? .orange : .green)
                         }
                     }
                 }
@@ -336,6 +411,24 @@ struct ExerciseListView: View {
                 try viewContext.save()
             } catch {
                 print("Error deleting exercise: \(error)")
+            }
+        }
+    }
+
+    private func deleteSelectedExercises() {
+        withAnimation {
+            for exercise in exercises {
+                if let id = exercise.id, selectedExercises.contains(id) {
+                    viewContext.delete(exercise)
+                }
+            }
+
+            do {
+                try viewContext.save()
+                selectedExercises.removeAll()
+                isSelectionMode = false
+            } catch {
+                print("Error deleting selected exercises: \(error)")
             }
         }
     }
@@ -473,6 +566,72 @@ struct CategoryHeader: View {
                 .foregroundColor(.accentColor)
             Text(category)
         }
+    }
+}
+
+// MARK: - Selectable Exercise Row
+
+struct SelectableExerciseRow: View {
+    @ObservedObject var exercise: Exercise
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    private var equipmentIcon: String {
+        if let builtIn = Equipment(rawValue: exercise.wrappedEquipment) {
+            return builtIn.icon
+        }
+        return "wrench.and.screwdriver"
+    }
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 12) {
+                // Selection indicator
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundColor(isSelected ? .accentColor : .secondary)
+
+                // Exercise info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(exercise.wrappedName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    HStack(spacing: 8) {
+                        Text(exercise.wrappedCategory)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        if exercise.wrappedEquipment != "No Equipment" {
+                            HStack(spacing: 4) {
+                                Image(systemName: equipmentIcon)
+                                    .font(.caption2)
+                                Text(exercise.wrappedEquipment)
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.orange)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // Disabled badge
+                if !exercise.isEnabled {
+                    Text("Disabled")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.gray.opacity(0.2))
+                        .foregroundColor(.secondary)
+                        .cornerRadius(4)
+                }
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
