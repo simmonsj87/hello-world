@@ -149,7 +149,29 @@ struct RandomWorkoutGeneratorView: View {
 
     private var configurationSections: some View {
         Group {
-            // Duration vs Count Toggle
+            // Category Distribution (Number of Exercises) - First
+            Section {
+                CategoryStepperRow(title: "Upper Body", count: $upperBodyCount, available: exerciseCount(for: "Upper Body"))
+                CategoryStepperRow(title: "Lower Body", count: $lowerBodyCount, available: exerciseCount(for: "Lower Body"))
+                CategoryStepperRow(title: "Core", count: $coreCount, available: exerciseCount(for: "Core"))
+                CategoryStepperRow(title: "Cardio", count: $cardioCount, available: exerciseCount(for: "Cardio"))
+                CategoryStepperRow(title: "Full Body", count: $fullBodyCount, available: exerciseCount(for: "Full Body"))
+
+                HStack {
+                    Text("Total Exercises")
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Text("\(totalExercisesFromCategories)")
+                        .fontWeight(.bold)
+                        .foregroundColor(.accentColor)
+                }
+            } header: {
+                Text("Number of Exercises")
+            } footer: {
+                Text("Select how many exercises from each category.")
+            }
+
+            // Duration vs Count Toggle - Second
             Section {
                 Toggle("Use Target Duration", isOn: $useDuration)
 
@@ -171,42 +193,23 @@ struct RandomWorkoutGeneratorView: View {
                 Text("Workout Length")
             } footer: {
                 if useDuration {
-                    Text("Exercises will be selected to fit within the target duration.")
-                } else {
-                    Text("Select specific exercise counts per category below.")
+                    Text("Rounds and timing will be adjusted to fit the target duration.")
                 }
             }
 
-            // Category Distribution
+            // Execution Mode and Rounds/Sets
             Section {
-                CategoryStepperRow(title: "Upper Body", count: $upperBodyCount, available: exerciseCount(for: "Upper Body"))
-                CategoryStepperRow(title: "Lower Body", count: $lowerBodyCount, available: exerciseCount(for: "Lower Body"))
-                CategoryStepperRow(title: "Core", count: $coreCount, available: exerciseCount(for: "Core"))
-                CategoryStepperRow(title: "Cardio", count: $cardioCount, available: exerciseCount(for: "Cardio"))
-                CategoryStepperRow(title: "Full Body", count: $fullBodyCount, available: exerciseCount(for: "Full Body"))
-
-                HStack {
-                    Text("Total Exercises")
-                        .fontWeight(.semibold)
-                    Spacer()
-                    Text("\(totalExercisesFromCategories)")
-                        .fontWeight(.bold)
-                        .foregroundColor(.accentColor)
+                // Execution Mode - First so user picks mode before sets/rounds
+                Picker("Execution Mode", selection: $executionMode) {
+                    Text("Round Robin").tag(ExecutionMode.roundRobin)
+                    Text("Sequential").tag(ExecutionMode.sequential)
                 }
-            } header: {
-                Text("Category Distribution")
-            } footer: {
-                if useDuration {
-                    Text("Distribution will be proportionally adjusted to fit the target duration.")
-                }
-            }
+                .pickerStyle(.segmented)
 
-            // Rounds and Execution Mode
-            Section {
-                // Rounds
+                // Rounds/Sets - Label changes based on mode
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Rounds")
+                        Text(executionMode == .sequential ? "Sets" : "Rounds")
                         Spacer()
                         Text("\(rounds)")
                             .fontWeight(.semibold)
@@ -230,20 +233,13 @@ struct RandomWorkoutGeneratorView: View {
                     }
                 }
 
-                // Execution Mode
-                Picker("Execution Mode", selection: $executionMode) {
-                    Text("Round Robin").tag(ExecutionMode.roundRobin)
-                    Text("Sequential").tag(ExecutionMode.sequential)
-                }
-                .pickerStyle(.segmented)
-
             } header: {
-                Text("Rounds & Execution")
+                Text("Execution Mode")
             } footer: {
                 if executionMode == .roundRobin {
                     Text("Round Robin: Cycle through all exercises, then repeat for each round.")
                 } else {
-                    Text("Sequential: Complete all rounds of each exercise before moving to the next.")
+                    Text("Sequential: Complete all sets of each exercise before moving to the next. Rest between exercises, then rest before repeating the circuit.")
                 }
             }
 
@@ -278,7 +274,7 @@ struct RandomWorkoutGeneratorView: View {
                 if rounds > 1 {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Rest Between Rounds")
+                            Text(executionMode == .sequential ? "Rest Between Sets" : "Rest Between Rounds")
                             Spacer()
                             Text(restBetweenRounds == 0 ? "None" : "\(restBetweenRounds) sec")
                                 .foregroundColor(.secondary)
@@ -340,7 +336,7 @@ struct RandomWorkoutGeneratorView: View {
                 }
 
                 HStack {
-                    Label("Rounds", systemImage: "repeat")
+                    Label(executionMode == .sequential ? "Sets" : "Rounds", systemImage: "repeat")
                     Spacer()
                     Text("\(rounds)")
                         .fontWeight(.semibold)
@@ -376,7 +372,7 @@ struct RandomWorkoutGeneratorView: View {
 
                 if rounds > 1 {
                     HStack {
-                        Label("Rest (Rounds)", systemImage: "arrow.counterclockwise")
+                        Label(executionMode == .sequential ? "Rest (Sets)" : "Rest (Rounds)", systemImage: "arrow.counterclockwise")
                         Spacer()
                         Text(restBetweenRounds == 0 ? "None" : "\(restBetweenRounds)s")
                             .foregroundColor(.secondary)

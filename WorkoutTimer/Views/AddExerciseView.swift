@@ -135,6 +135,12 @@ struct AddExerciseView: View {
                         dismiss()
                     }
                 }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
             }
             .sheet(isPresented: $showingAddCategory) {
                 AddCategoryView { newCategory in
@@ -338,11 +344,14 @@ struct ExerciseDiscoveryView: View {
     @State private var selectedCategory: String = "All"
     @State private var selectedEquipment: String = "All"
     @State private var addedExercises: Set<String> = []
-    @State private var showingAddedAlert = false
-    @State private var lastAddedExercise = ""
+    @State private var removedExercises: Set<String> = []
 
     private var existingExerciseNames: Set<String> {
         Set(existingExercises.map { $0.wrappedName })
+    }
+
+    private func isInLibrary(_ name: String) -> Bool {
+        (existingExerciseNames.contains(name) || addedExercises.contains(name)) && !removedExercises.contains(name)
     }
 
     private var filteredExercises: [LibraryExercise] {
@@ -444,8 +453,8 @@ struct ExerciseDiscoveryView: View {
                                         name: exercise.name,
                                         category: exercise.category,
                                         equipment: exercise.equipment,
-                                        isInLibrary: existingExerciseNames.contains(exercise.name) || addedExercises.contains(exercise.name),
-                                        onAdd: { addExercise(exercise) }
+                                        isInLibrary: isInLibrary(exercise.name),
+                                        onToggle: { toggleExercise(exercise) }
                                     )
                                 }
                             }
@@ -464,15 +473,29 @@ struct ExerciseDiscoveryView: View {
                     }
                 }
             }
-            .alert("Exercise Added", isPresented: $showingAddedAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("\"\(lastAddedExercise)\" has been added to your library.")
-            }
+        }
+    }
+
+    private func toggleExercise(_ exercise: LibraryExercise) {
+        if isInLibrary(exercise.name) {
+            // Remove from library
+            removeExercise(exercise)
+        } else {
+            // Add to library
+            addExercise(exercise)
         }
     }
 
     private func addExercise(_ exercise: LibraryExercise) {
+        // If it was previously removed in this session, just un-remove it
+        if removedExercises.contains(exercise.name) {
+            removedExercises.remove(exercise.name)
+            // Haptic feedback
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+            return
+        }
+
         // Check if already exists
         guard !existingExerciseNames.contains(exercise.name),
               !addedExercises.contains(exercise.name) else {
@@ -489,8 +512,6 @@ struct ExerciseDiscoveryView: View {
         do {
             try viewContext.save()
             addedExercises.insert(exercise.name)
-            lastAddedExercise = exercise.name
-            showingAddedAlert = true
 
             // Haptic feedback
             let generator = UINotificationFeedbackGenerator()
@@ -498,6 +519,37 @@ struct ExerciseDiscoveryView: View {
         } catch {
             print("Error adding exercise: \(error)")
         }
+    }
+
+    private func removeExercise(_ exercise: LibraryExercise) {
+        // If it was added in this session, just remove from addedExercises
+        if addedExercises.contains(exercise.name) {
+            addedExercises.remove(exercise.name)
+            // Also delete from core data
+            if let existingExercise = existingExercises.first(where: { $0.wrappedName == exercise.name }) {
+                viewContext.delete(existingExercise)
+                do {
+                    try viewContext.save()
+                } catch {
+                    print("Error removing exercise: \(error)")
+                }
+            }
+        } else if existingExerciseNames.contains(exercise.name) {
+            // Mark as removed (will need to delete from core data)
+            if let existingExercise = existingExercises.first(where: { $0.wrappedName == exercise.name }) {
+                viewContext.delete(existingExercise)
+                do {
+                    try viewContext.save()
+                    removedExercises.insert(exercise.name)
+                } catch {
+                    print("Error removing exercise: \(error)")
+                }
+            }
+        }
+
+        // Haptic feedback
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
     }
 }
 
@@ -508,46 +560,46 @@ struct DiscoveryExerciseRow: View {
     let category: String
     let equipment: Equipment
     let isInLibrary: Bool
-    let onAdd: () -> Void
+    let onToggle: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(name)
-                    .font(.body)
-                    .foregroundColor(isInLibrary ? .secondary : .primary)
+        Button(action: onToggle) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(name)
+                        .font(.body)
+                        .foregroundColor(.primary)
 
-                if equipment != .none {
-                    HStack(spacing: 4) {
-                        Image(systemName: equipment.icon)
-                            .font(.caption2)
-                        Text(equipment.rawValue)
-                            .font(.caption)
-                    }
-                    .foregroundColor(.orange)
-                } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "figure.stand")
-                            .font(.caption2)
-                        Text("No Equipment")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.green)
-                }
-            }
-
-            Spacer()
-
-            if isInLibrary {
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
+                    if equipment != .none {
+                        HStack(spacing: 4) {
+                            Image(systemName: equipment.icon)
+                                .font(.caption2)
+                            Text(equipment.rawValue)
+                                .font(.caption)
+                        }
+                        .foregroundColor(.orange)
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "figure.stand")
+                                .font(.caption2)
+                            Text("No Equipment")
+                                .font(.caption)
+                        }
                         .foregroundColor(.green)
-                    Text("In Library")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    }
                 }
-            } else {
-                Button(action: onAdd) {
+
+                Spacer()
+
+                if isInLibrary {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Added")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                } else {
                     HStack(spacing: 4) {
                         Image(systemName: "plus.circle.fill")
                         Text("Add")
@@ -556,9 +608,10 @@ struct DiscoveryExerciseRow: View {
                     .fontWeight(.medium)
                     .foregroundColor(.accentColor)
                 }
-                .buttonStyle(.plain)
             }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .padding(.vertical, 4)
     }
 }
