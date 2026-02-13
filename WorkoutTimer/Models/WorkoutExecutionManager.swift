@@ -39,6 +39,7 @@ class WorkoutExecutionManager: ObservableObject {
     private var timePerExercise: Int
     private var restBetweenExercises: Int
     private var restBetweenRounds: Int
+    private var warmupDuration: Int  // in seconds
     private var isRoundRobin: Bool
 
     // MARK: - Computed Properties
@@ -94,6 +95,8 @@ class WorkoutExecutionManager: ObservableObject {
     var exerciseProgress: CGFloat {
         let totalTime: Int
         switch state {
+        case .warmup:
+            totalTime = warmupDuration
         case .countdown:
             totalTime = countdownDuration
             return CGFloat(countdownValue) / CGFloat(totalTime)
@@ -127,6 +130,8 @@ class WorkoutExecutionManager: ObservableObject {
         switch state {
         case .ready:
             return "Ready to start"
+        case .warmup:
+            return "Warming up"
         case .countdown:
             return "Get ready..."
         case .running:
@@ -160,6 +165,7 @@ class WorkoutExecutionManager: ObservableObject {
         self.timePerExercise = max(5, Int(workout.timePerExercise))
         self.restBetweenExercises = Int(workout.restBetweenExercises)
         self.restBetweenRounds = Int(workout.restBetweenRounds)
+        self.warmupDuration = Int(workout.warmupDuration) * 60  // Convert minutes to seconds
         self.isRoundRobin = workout.isRoundRobin
     }
 
@@ -179,7 +185,21 @@ class WorkoutExecutionManager: ObservableObject {
         currentRound = 1
         elapsedTime = 0
 
-        startCountdown()
+        // Start warmup if duration > 0, otherwise go straight to countdown
+        if warmupDuration > 0 {
+            startWarmup()
+        } else {
+            startCountdown()
+        }
+    }
+
+    func skipWarmup() {
+        guard state == .warmup else { return }
+        stopTimer()
+        voiceManager?.speak("Warmup skipped. Let's go!")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.startCountdown()
+        }
     }
 
     func stop() {
@@ -234,7 +254,7 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     private func pause() {
-        guard state == .running || state == .resting || state == .roundRest else { return }
+        guard state == .running || state == .resting || state == .roundRest || state == .warmup else { return }
         previousState = state
         stopTimer()
         state = .paused
@@ -246,6 +266,26 @@ class WorkoutExecutionManager: ObservableObject {
         state = previousState
         voiceManager?.speak("Resume")
         startTimer()
+    }
+
+    // MARK: - Private Methods - Warmup
+
+    private func startWarmup() {
+        state = .warmup
+        timeRemaining = warmupDuration
+
+        voiceManager?.speak("Starting warmup. \(warmupDuration / 60) minutes.")
+        startTimer()
+    }
+
+    private func handleWarmupComplete() {
+        stopTimer()
+        voiceManager?.speak("Warmup complete. Get ready for your workout!")
+
+        // Brief pause before starting countdown
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.startCountdown()
+        }
     }
 
     // MARK: - Private Methods - Countdown
@@ -299,8 +339,8 @@ class WorkoutExecutionManager: ObservableObject {
     // MARK: - Private Methods - Tick
 
     private func tick() {
-        // Update elapsed time (except during countdown)
-        if state != .countdown {
+        // Update elapsed time (except during countdown and warmup)
+        if state != .countdown && state != .warmup {
             elapsedTime += 1
         }
 
@@ -316,6 +356,24 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     private func handleTimeWarnings() {
+        // Warmup time announcements
+        if state == .warmup {
+            // Announce every minute during warmup
+            if timeRemaining > 0 && timeRemaining % 60 == 0 {
+                let minutesLeft = timeRemaining / 60
+                if minutesLeft > 0 {
+                    voiceManager?.speak("\(minutesLeft) minute\(minutesLeft > 1 ? "s" : "") remaining")
+                }
+            }
+            // Final 10 seconds countdown
+            if timeRemaining == 10 {
+                voiceManager?.speak("10 seconds left")
+            } else if timeRemaining <= 5 && timeRemaining > 0 {
+                voiceManager?.announceTimeWarning(seconds: timeRemaining)
+            }
+            return
+        }
+
         // Countdown warnings during running state (ending an exercise)
         if state == .running && timeRemaining <= 3 && timeRemaining > 0 {
             voiceManager?.announceTimeWarning(seconds: timeRemaining)
@@ -333,6 +391,9 @@ class WorkoutExecutionManager: ObservableObject {
 
     private func handleTimeExpired() {
         switch state {
+        case .warmup:
+            handleWarmupComplete()
+
         case .running:
             // Announce "Stop!" when exercise ends
             voiceManager?.speak("Stop!")

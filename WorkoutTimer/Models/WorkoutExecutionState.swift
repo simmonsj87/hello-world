@@ -9,6 +9,7 @@ import Foundation
 
 enum WorkoutExecutionState: Equatable {
     case ready
+    case warmup      // Warmup timer before workout starts
     case countdown
     case running
     case resting
