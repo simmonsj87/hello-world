@@ -280,10 +280,10 @@ class WorkoutExecutionManager: ObservableObject {
 
     private func handleWarmupComplete() {
         stopTimer()
-        voiceManager?.speak("Warmup complete. Get ready for your workout!")
+        voiceManager?.speak("Warmup complete.")
 
-        // Brief pause before starting countdown
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        // Brief pause before starting countdown (which announces the first exercise name)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.startCountdown()
         }
     }
@@ -358,12 +358,9 @@ class WorkoutExecutionManager: ObservableObject {
     private func handleTimeWarnings() {
         // Warmup time announcements
         if state == .warmup {
-            // Announce every minute during warmup
-            if timeRemaining > 0 && timeRemaining % 60 == 0 {
-                let minutesLeft = timeRemaining / 60
-                if minutesLeft > 0 {
-                    voiceManager?.speak("\(minutesLeft) minute\(minutesLeft > 1 ? "s" : "") remaining")
-                }
+            // Only announce at 1 minute remaining
+            if timeRemaining == 60 {
+                voiceManager?.speak("1 minute remaining")
             }
             // Final 10 seconds countdown
             if timeRemaining == 10 {

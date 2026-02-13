@@ -13,7 +13,6 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @ObservedObject var settings = SettingsManager.shared
-    @StateObject private var voiceManager = VoiceAnnouncementManager()
 
     @FetchRequest(sortDescriptors: [])
     private var exercises: FetchedResults<Exercise>
@@ -165,14 +164,6 @@ struct SettingsView: View {
                     }
                 }
 
-                // Test Voice
-                Button(action: testVoice) {
-                    HStack {
-                        Image(systemName: "play.circle.fill")
-                            .foregroundColor(.accentColor)
-                        Text("Test Voice")
-                    }
-                }
             }
         } header: {
             SectionHeader(icon: "waveform", title: "VOICE")
@@ -481,22 +472,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Actions
-
-    private func testVoice() {
-        // Temporarily enable voice for testing
-        voiceManager.isEnabled = true
-        voiceManager.selectedVoiceIdentifier = settings.selectedVoiceIdentifier
-        voiceManager.rate = settings.speechRate
-        voiceManager.volume = max(0.1, settings.speechVolume)  // Ensure minimum volume for test
-
-        // Stop any existing speech first
-        voiceManager.stop()
-
-        // Use a shorter test message
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.voiceManager.speak("Testing voice. 3, 2, 1, go!")
-        }
-    }
 
     private func saveQuickStartPreset() {
         settings.saveAsQuickStartPreset()
