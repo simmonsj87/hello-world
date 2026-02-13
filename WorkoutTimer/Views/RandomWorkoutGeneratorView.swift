@@ -675,8 +675,10 @@ struct RandomWorkoutGeneratorView: View {
         workout.timePerExercise = Int32(exerciseDuration)
         workout.restBetweenExercises = Int32(restBetweenExercises)
         workout.restBetweenRounds = Int32(restBetweenRounds)
-        workout.warmupDuration = Int32(warmupDuration)
         workout.executionMode = executionMode.rawValue
+
+        // Set warmup duration (stored in UserDefaults)
+        workout.warmupDuration = Int32(warmupDuration)
 
         for (index, generated) in generatedExercises.enumerated() {
             let workoutExercise = WorkoutExercise(context: viewContext)

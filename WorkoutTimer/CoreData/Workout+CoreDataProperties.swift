@@ -21,7 +21,6 @@ extension Workout {
     @NSManaged public var timePerExercise: Int32
     @NSManaged public var restBetweenExercises: Int32
     @NSManaged public var restBetweenRounds: Int32
-    @NSManaged public var warmupDuration: Int32  // in minutes
     @NSManaged public var executionMode: String?
     @NSManaged public var workoutExercises: NSSet?
 
@@ -96,6 +95,18 @@ extension Workout {
     /// Whether this workout uses round-robin execution.
     public var isRoundRobin: Bool {
         wrappedExecutionMode == "roundRobin"
+    }
+
+    /// Warmup duration in minutes (stored in UserDefaults since CoreData schema hasn't been migrated)
+    public var warmupDuration: Int32 {
+        get {
+            guard let workoutId = id else { return 0 }
+            return Int32(UserDefaults.standard.integer(forKey: "workout_warmup_\(workoutId.uuidString)"))
+        }
+        set {
+            guard let workoutId = id else { return }
+            UserDefaults.standard.set(Int(newValue), forKey: "workout_warmup_\(workoutId.uuidString)")
+        }
     }
 
     /// Calculated total workout duration based on settings.
