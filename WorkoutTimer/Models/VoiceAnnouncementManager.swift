@@ -17,17 +17,12 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     @Published var isSpeaking: Bool = false
 
     /// Whether voice announcements are enabled
-    @Published var isEnabled: Bool = true {
-        didSet {
-            saveSettings()
-        }
-    }
+    @Published var isEnabled: Bool = true
 
     /// Selected voice identifier
     @Published var selectedVoiceIdentifier: String = "" {
         didSet {
             updateVoice()
-            saveSettings()
         }
     }
 
@@ -35,7 +30,6 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     @Published var rate: Float = 0.48 {
         didSet {
             rate = min(max(rate, 0.3), 0.7)
-            saveSettings()
         }
     }
 
@@ -43,7 +37,6 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     @Published var volume: Float = 0.8 {
         didSet {
             volume = min(max(volume, 0.0), 1.0)
-            saveSettings()
         }
     }
 
@@ -58,8 +51,6 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     private var countdownTickHandler: ((Int) -> Void)?
     private var triggerOnStart: Bool = false  // Whether to trigger completion on speech start
     private var currentUtteranceText: String = ""  // Track current utterance for start detection
-
-    private let settingsKey = "VoiceAnnouncementSettings"
 
     // System sound IDs for bell sounds
     private let bellSoundID: SystemSoundID = 1013  // Mail sent sound (ding)
@@ -514,33 +505,15 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         return AVSpeechSynthesisVoice(language: "en-US")
     }
 
-    // MARK: - Settings Persistence
+    // MARK: - Settings Loading
 
-    private func saveSettings() {
-        let settings = VoiceSettings(
-            isEnabled: isEnabled,
-            voiceIdentifier: selectedVoiceIdentifier,
-            rate: rate,
-            volume: volume
-        )
-
-        if let encoded = try? JSONEncoder().encode(settings) {
-            UserDefaults.standard.set(encoded, forKey: settingsKey)
-        }
-    }
-
+    /// Loads voice settings from SettingsManager (single source of truth).
     private func loadSettings() {
-        guard let data = UserDefaults.standard.data(forKey: settingsKey),
-              let settings = try? JSONDecoder().decode(VoiceSettings.self, from: data) else {
-            // Use defaults
-            updateVoice()
-            return
-        }
-
-        isEnabled = settings.isEnabled
-        selectedVoiceIdentifier = settings.voiceIdentifier
-        rate = settings.rate
-        volume = settings.volume
+        let settings = SettingsManager.shared
+        isEnabled = settings.voiceEnabled
+        selectedVoiceIdentifier = settings.selectedVoiceIdentifier
+        rate = settings.speechRate
+        volume = settings.speechVolume
         updateVoice()
     }
 
@@ -620,11 +593,3 @@ struct VoiceOption: Identifiable, Equatable {
     }
 }
 
-// MARK: - Voice Settings Model
-
-struct VoiceSettings: Codable {
-    let isEnabled: Bool
-    let voiceIdentifier: String
-    let rate: Float
-    let volume: Float
-}

@@ -506,6 +506,7 @@ struct ExerciseDiscoveryView: View {
         newExercise.id = UUID()
         newExercise.name = exercise.name
         newExercise.category = exercise.category
+        newExercise.equipment = exercise.equipment.rawValue
         newExercise.createdDate = Date()
         newExercise.isEnabled = true
 
