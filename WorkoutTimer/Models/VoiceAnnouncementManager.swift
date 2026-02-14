@@ -27,18 +27,10 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     }
 
     /// Speech rate (0.3 - 0.7, default 0.48 for more natural sound)
-    @Published var rate: Float = 0.48 {
-        didSet {
-            rate = min(max(rate, 0.3), 0.7)
-        }
-    }
+    @Published var rate: Float = 0.48
 
     /// Speech volume (0.0 - 1.0, default 0.8)
-    @Published var volume: Float = 0.8 {
-        didSet {
-            volume = min(max(volume, 0.0), 1.0)
-        }
-    }
+    @Published var volume: Float = 0.8
 
     // MARK: - Private Properties
 
@@ -254,7 +246,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         let utterance = AVSpeechUtterance(string: word)
         utterance.voice = currentVoice ?? findBestAvailableVoice() ?? AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.52  // Slightly faster for crisp countdown
-        utterance.volume = volume
+        utterance.volume = min(max(volume, 0.0), 1.0)
         utterance.preUtteranceDelay = 0
         utterance.postUtteranceDelay = 0
 
