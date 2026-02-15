@@ -76,9 +76,11 @@ extension Workout {
     }
 
     /// Formatted total duration string (e.g., "5:30").
+    /// Uses calculatedTotalDuration which accounts for rounds, rest periods, and warmup.
     public var formattedTotalDuration: String {
-        let minutes = totalDuration / 60
-        let seconds = totalDuration % 60
+        let total = calculatedTotalDuration
+        let minutes = total / 60
+        let seconds = total % 60
         return String(format: "%d:%02d", minutes, seconds)
     }
 
