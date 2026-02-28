@@ -30,26 +30,34 @@ struct WorkoutExecutionView: View {
     }
 
     var body: some View {
-        ZStack {
-            // Background color based on state
-            backgroundColor
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
 
-            VStack(spacing: 0) {
-                // Header (compact)
-                headerSection
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+            ZStack {
+                // Background color based on state
+                backgroundColor
+                    .ignoresSafeArea()
 
-                if executionManager.state == .completed {
-                    completedView
-                        .padding()
-                } else if executionManager.state == .ready {
-                    readyStateView
-                } else if executionManager.state == .warmup {
-                    warmupStateView
-                } else {
-                    runningStateView
+                VStack(spacing: 0) {
+                    // Header (compact)
+                    headerSection
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+
+                    if executionManager.state == .completed {
+                        completedView
+                            .padding()
+                    } else if executionManager.state == .ready {
+                        readyStateView
+                    } else if executionManager.state == .warmup {
+                        warmupStateView
+                    } else {
+                        if isLandscape {
+                            landscapeRunningView(geometry: geometry)
+                        } else {
+                            runningStateView
+                        }
+                    }
                 }
             }
         }
@@ -110,13 +118,14 @@ struct WorkoutExecutionView: View {
 
             Spacer()
 
-            VStack(spacing: 0) {
+            VStack(spacing: 2) {
                 Text(workout.wrappedName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.headline)
+                    .fontWeight(.bold)
                     .lineLimit(1)
                 Text(executionManager.stateDisplayText)
-                    .font(.caption2)
+                    .font(.footnote)
+                    .fontWeight(.semibold)
                     .foregroundColor(stateColor)
             }
 
@@ -124,7 +133,7 @@ struct WorkoutExecutionView: View {
 
             VStack(alignment: .trailing, spacing: 0) {
                 Text(executionManager.formattedElapsedTime)
-                    .font(.caption)
+                    .font(.subheadline)
                     .fontWeight(.medium)
                     .monospacedDigit()
             }
@@ -384,6 +393,126 @@ struct WorkoutExecutionView: View {
         .cornerRadius(10)
     }
 
+    // MARK: - Landscape Running View
+
+    private func landscapeRunningView(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 16) {
+                // Left column: exercise name, category, next up
+                VStack(spacing: 8) {
+                    // Current exercise or state label
+                    if executionManager.state == .resting {
+                        Text("REST")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundColor(.blue)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if executionManager.state == .roundRest {
+                        Text("ROUND BREAK")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundColor(.purple)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if let exercise = executionManager.currentExercise {
+                        Text(exercise.exerciseName)
+                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        HStack(spacing: 8) {
+                            Text(exercise.exerciseCategory)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.secondary.opacity(0.15))
+                                .cornerRadius(5)
+
+                            if workout.rounds > 1 {
+                                Text("Round \(executionManager.currentRound) of \(workout.rounds)")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.accentColor)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.accentColor.opacity(0.1))
+                                    .cornerRadius(5)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Spacer()
+
+                    // Next up
+                    if let nextExercise = executionManager.nextExercise {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("NEXT UP")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                            Text(nextExercise.exerciseName)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .lineLimit(1)
+                            Text(nextExercise.exerciseCategory)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.secondarySystemBackground))
+                        .cornerRadius(10)
+                    }
+
+                    // Progress
+                    progressSectionBottom
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.leading)
+
+                // Right column: timer circle + controls
+                VStack(spacing: 12) {
+                    // Compact timer circle for landscape
+                    ZStack {
+                        Circle()
+                            .stroke(lineWidth: 12)
+                            .opacity(0.2)
+                            .foregroundColor(stateColor)
+
+                        Circle()
+                            .trim(from: 0.0, to: executionManager.exerciseProgress)
+                            .stroke(style: StrokeStyle(lineWidth: 12, lineCap: .round, lineJoin: .round))
+                            .foregroundColor(stateColor)
+                            .rotationEffect(Angle(degrees: -90))
+                            .animation(.linear(duration: 0.5), value: executionManager.exerciseProgress)
+
+                        VStack(spacing: 2) {
+                            Text(executionManager.formattedTimeRemaining)
+                                .font(.system(size: 44, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundColor(stateColor)
+
+                            if executionManager.state == .countdown {
+                                Text("GET READY")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                    }
+                    .frame(width: 160, height: 160)
+
+                    controlsSection
+                }
+                .padding(.trailing)
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+        }
+    }
+
     // MARK: - Running State View
 
     private var runningStateView: some View {
@@ -432,10 +561,10 @@ struct WorkoutExecutionView: View {
             } else if let exercise = executionManager.currentExercise {
                 Spacer()
                 Text(exercise.exerciseName)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .font(.system(size: 38, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.5)
+                    .minimumScaleFactor(0.4)
                     .padding(.horizontal)
 
                 HStack(spacing: 10) {
@@ -543,30 +672,31 @@ struct WorkoutExecutionView: View {
     // MARK: - Progress Section (Bottom)
 
     private var progressSectionBottom: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
             HStack {
                 Text("Exercise \(executionManager.currentExerciseIndex + 1)/\(executionManager.totalExercises)")
-                    .font(.caption)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
                     .foregroundColor(.secondary)
                 Spacer()
                 Text("\(Int(executionManager.workoutProgress * 100))%")
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
             }
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: 5)
                         .fill(Color.gray.opacity(0.2))
-                        .frame(height: 6)
+                        .frame(height: 10)
 
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: 5)
                         .fill(stateColor)
-                        .frame(width: geometry.size.width * executionManager.workoutProgress, height: 6)
+                        .frame(width: geometry.size.width * executionManager.workoutProgress, height: 10)
                         .animation(.easeInOut(duration: 0.3), value: executionManager.workoutProgress)
                 }
             }
-            .frame(height: 6)
+            .frame(height: 10)
         }
     }
 

@@ -93,7 +93,9 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     private func setupAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
+            // Use .mixWithOthers so voice announcements don't duck (lower) background music.
+            // .voicePrompt mode ensures the system treats these as intermittent prompts.
+            try audioSession.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers])
             try audioSession.setActive(true)
         } catch {
             print("Failed to setup audio session: \(error.localizedDescription)")
@@ -199,12 +201,13 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         startPreciseCountdown(endWord: "Go!", completion: completion)
     }
 
-    /// Starts a precise 1-second interval countdown: 3, 2, 1, [endWord]
+    /// Starts a countdown: 3, 2, 1, [endWord]
+    /// Uses 1-second intervals between numbers, then a shorter gap before the final word
+    /// so "Go!" or "Stop" follows "1" quickly and naturally.
     private func startPreciseCountdown(endWord: String, completion: (() -> Void)?) {
         countdownTimer?.invalidate()
         countdownCompletion = completion
 
-        var countdownValue = 3
         let countdownSequence = ["3", "2", "1", endWord]
         var currentIndex = 0
 
@@ -212,31 +215,49 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         speakCountdownWord(countdownSequence[currentIndex])
         currentIndex += 1
 
-        // Schedule timer for remaining words at exactly 1 second intervals
+        // Schedule "2" and "1" at 1-second intervals, then schedule the final word
+        // with a shorter delay so it follows "1" naturally without a full 1-second pause.
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
                 return
             }
 
-            if currentIndex < countdownSequence.count {
-                let word = countdownSequence[currentIndex]
-                self.speakCountdownWord(word)
+            guard currentIndex < countdownSequence.count else {
+                timer.invalidate()
+                self.countdownTimer = nil
+                return
+            }
 
-                // If this is the final word (Go! or Stop), trigger completion immediately
-                if currentIndex == countdownSequence.count - 1 {
-                    timer.invalidate()
+            let word = countdownSequence[currentIndex]
+            let isPenultimate = (currentIndex == countdownSequence.count - 2) // about to speak "1"
+
+            self.speakCountdownWord(word)
+            currentIndex += 1
+
+            if isPenultimate {
+                // Just spoke "1" — stop the repeating timer and schedule the final
+                // word after a shorter delay (0.65s) for a natural "one… GO!" rhythm.
+                timer.invalidate()
+                self.countdownTimer = nil
+                let finalWord = countdownSequence[currentIndex]
+                currentIndex += 1
+                self.countdownTimer = Timer.scheduledTimer(withTimeInterval: 0.65, repeats: false) { [weak self] _ in
+                    guard let self = self else { return }
+                    self.speakCountdownWord(finalWord)
                     self.countdownTimer = nil
-                    // Call completion immediately when final word starts
                     if let comp = self.countdownCompletion {
                         self.countdownCompletion = nil
                         comp()
                     }
                 }
-                currentIndex += 1
-            } else {
+            } else if currentIndex >= countdownSequence.count {
                 timer.invalidate()
                 self.countdownTimer = nil
+                if let comp = self.countdownCompletion {
+                    self.countdownCompletion = nil
+                    comp()
+                }
             }
         }
     }
