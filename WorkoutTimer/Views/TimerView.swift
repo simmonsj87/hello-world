@@ -18,23 +18,31 @@ struct TimerView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
+            GeometryReader { geometry in
+                let isLandscape = geometry.size.width > geometry.size.height
+
+                ScrollView {
                     if timerManager.currentState == .idle {
-                        // Show total time and START button prominently at top
-                        idleHeaderSection
+                        VStack(spacing: 20) {
+                            // Show total time and START button prominently at top
+                            idleHeaderSection
 
-                        // Configuration below
-                        configurationSection
+                            // Configuration below
+                            configurationSection
+                        }
+                        .padding()
+                    } else if isLandscape {
+                        landscapeTimerView
+                            .padding()
                     } else {
-                        timerDisplaySection
-
-                        controlButtonsSection
-
-                        progressInfoSection
+                        VStack(spacing: 20) {
+                            timerDisplaySection
+                            controlButtonsSection
+                            progressInfoSection
+                        }
+                        .padding()
                     }
                 }
-                .padding()
             }
             .navigationTitle("Interval Timer")
             .toolbar {
@@ -83,6 +91,95 @@ struct TimerView: View {
             .onChange(of: configuration) { _, newConfig in
                 timerManager.configuration = newConfig
             }
+        }
+    }
+
+    // MARK: - Landscape Timer View
+
+    private var landscapeTimerView: some View {
+        HStack(alignment: .center, spacing: 24) {
+            // Left: compact timer circle
+            ZStack {
+                Circle()
+                    .stroke(lineWidth: 16)
+                    .opacity(0.2)
+                    .foregroundColor(stateColor)
+
+                Circle()
+                    .trim(from: 0.0, to: progressForCurrentInterval)
+                    .stroke(style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round))
+                    .foregroundColor(stateColor)
+                    .rotationEffect(Angle(degrees: -90))
+                    .animation(.linear(duration: 0.5), value: progressForCurrentInterval)
+
+                VStack(spacing: 6) {
+                    Text(timerManager.formattedTimeRemaining)
+                        .font(.system(size: 54, weight: .bold, design: .rounded))
+                        .foregroundColor(stateColor)
+                        .monospacedDigit()
+
+                    Text(timerManager.currentState.displayName.uppercased())
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(stateColor)
+
+                    if timerManager.isPaused {
+                        Text("PAUSED")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.orange)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 3)
+                            .background(Color.orange.opacity(0.2))
+                            .cornerRadius(8)
+                    }
+                }
+            }
+            .frame(width: 220, height: 220)
+
+            // Right: round/set info + controls + progress
+            VStack(alignment: .leading, spacing: 16) {
+                if timerManager.currentState != .completed {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Round \(timerManager.currentRound) of \(timerManager.configuration.rounds)")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                        Text("Set \(timerManager.currentCycle) of \(timerManager.configuration.cycles)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                controlButtonsSection
+
+                // Overall progress
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Overall Progress")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(Int(timerManager.progress * 100))%")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(height: 8)
+                                .cornerRadius(4)
+                            Rectangle()
+                                .fill(Color.accentColor)
+                                .frame(width: geo.size.width * timerManager.progress, height: 8)
+                                .cornerRadius(4)
+                                .animation(.easeInOut, value: timerManager.progress)
+                        }
+                    }
+                    .frame(height: 8)
+                }
+            }
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -336,32 +433,32 @@ struct TimerView: View {
     private var progressInfoSection: some View {
         VStack(spacing: 12) {
             // Overall Progress Bar
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("Overall Progress")
-                        .font(.subheadline)
+                        .font(.headline)
                         .foregroundColor(.secondary)
                     Spacer()
                     Text("\(Int(timerManager.progress * 100))%")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(.headline)
+                        .fontWeight(.bold)
                 }
 
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Rectangle()
                             .fill(Color.gray.opacity(0.2))
-                            .frame(height: 8)
-                            .cornerRadius(4)
+                            .frame(height: 10)
+                            .cornerRadius(5)
 
                         Rectangle()
                             .fill(Color.accentColor)
-                            .frame(width: geometry.size.width * timerManager.progress, height: 8)
-                            .cornerRadius(4)
+                            .frame(width: geometry.size.width * timerManager.progress, height: 10)
+                            .cornerRadius(5)
                             .animation(.easeInOut, value: timerManager.progress)
                     }
                 }
-                .frame(height: 8)
+                .frame(height: 10)
             }
 
             // Stats

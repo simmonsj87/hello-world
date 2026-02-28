@@ -185,6 +185,13 @@ class WorkoutExecutionManager: ObservableObject {
         currentRound = 1
         elapsedTime = 0
 
+        SettingsManager.shared.enableScreenAwakeForWorkout()
+        ActiveTimerTracker.shared.updateWorkout(
+            active: true,
+            time: formattedTimeRemaining,
+            state: stateDisplayText
+        )
+
         // Start warmup if duration > 0, otherwise go straight to countdown
         if warmupDuration > 0 {
             startWarmup()
@@ -207,6 +214,8 @@ class WorkoutExecutionManager: ObservableObject {
         voiceManager?.stop()
         endBackgroundTask()
         state = .ready
+        SettingsManager.shared.disableScreenAwakeAfterWorkout()
+        ActiveTimerTracker.shared.updateWorkout(active: false)
     }
 
     func togglePause() {
@@ -229,13 +238,15 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     func enterForeground() {
-        if let backgroundDate = backgroundDate {
+        cancelNotifications()
+        endBackgroundTask()
+        // Only simulate elapsed time if the timer stopped running in the background
+        // (background audio mode keeps the timer alive, so no correction needed when timer != nil).
+        if let backgroundDate = backgroundDate, timer == nil {
             let elapsed = Int(Date().timeIntervalSince(backgroundDate))
             handleBackgroundElapsed(elapsed)
         }
         backgroundDate = nil
-        cancelNotifications()
-        endBackgroundTask()
     }
 
     // MARK: - Private Methods - Timer Control
@@ -347,6 +358,13 @@ class WorkoutExecutionManager: ObservableObject {
         // Countdown
         if timeRemaining > 0 {
             timeRemaining -= 1
+
+            // Keep the mini bar up to date
+            ActiveTimerTracker.shared.updateWorkout(
+                active: true,
+                time: formattedTimeRemaining,
+                state: stateDisplayText
+            )
 
             // Time warnings
             handleTimeWarnings()
@@ -651,6 +669,8 @@ class WorkoutExecutionManager: ObservableObject {
         state = .completed
         voiceManager?.announceWorkoutComplete()
         sendCompletionNotification()
+        SettingsManager.shared.disableScreenAwakeAfterWorkout()
+        ActiveTimerTracker.shared.updateWorkout(active: false)
     }
 
     // MARK: - Private Methods - Background Handling

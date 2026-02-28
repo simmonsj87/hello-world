@@ -92,6 +92,13 @@ class IntervalTimerManager: ObservableObject {
         isPaused = false
         hasAnnouncedCountdown = false
 
+        SettingsManager.shared.enableScreenAwakeForWorkout()
+        ActiveTimerTracker.shared.updateInterval(
+            active: true,
+            time: formattedTimeRemaining,
+            state: currentState.displayName
+        )
+
         // Announce start with countdown - timer starts when "Go!" is said
         if let voice = voiceManager, voice.isEnabled {
             voice.announceIntervalWorkStart { [weak self] in
@@ -129,6 +136,13 @@ class IntervalTimerManager: ObservableObject {
         hasAnnouncedCountdown = false
         currentState = .working
 
+        SettingsManager.shared.enableScreenAwakeForWorkout()
+        ActiveTimerTracker.shared.updateInterval(
+            active: true,
+            time: formattedTimeRemaining,
+            state: currentState.displayName
+        )
+
         // Announce restart with countdown - timer starts when "Go!" is said
         if let voice = voiceManager, voice.isEnabled {
             voice.announceIntervalWorkStart { [weak self] in
@@ -151,6 +165,8 @@ class IntervalTimerManager: ObservableObject {
         timeRemaining = configuration.workDuration
         isPaused = false
         hasAnnouncedCountdown = false
+        SettingsManager.shared.disableScreenAwakeAfterWorkout()
+        ActiveTimerTracker.shared.updateInterval(active: false)
     }
 
     /// Toggle between pause and resume
@@ -181,6 +197,13 @@ class IntervalTimerManager: ObservableObject {
 
         if timeRemaining > 0 {
             timeRemaining -= 1
+
+            // Update mini bar display
+            ActiveTimerTracker.shared.updateInterval(
+                active: true,
+                time: formattedTimeRemaining,
+                state: currentState.displayName
+            )
 
             // Announce countdown for transitions
             if timeRemaining == 3 && !hasAnnouncedCountdown {
@@ -278,6 +301,8 @@ class IntervalTimerManager: ObservableObject {
         timeRemaining = 0
         stopTimer()
         voiceManager?.announceIntervalComplete()
+        SettingsManager.shared.disableScreenAwakeAfterWorkout()
+        ActiveTimerTracker.shared.updateInterval(active: false)
     }
 
     deinit {
