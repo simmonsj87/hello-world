@@ -185,6 +185,8 @@ class IntervalTimerManager: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.tick()
         }
+        // .common mode ensures the timer fires even when the app is in the background
+        RunLoop.main.add(timer!, forMode: .common)
     }
 
     private func stopTimer() {
