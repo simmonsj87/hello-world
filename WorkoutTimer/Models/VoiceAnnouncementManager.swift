@@ -112,13 +112,14 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
 
     // MARK: - Background Keepalive
 
-    /// Called when a workout or interval timer starts.
-    /// Begins looping a silent audio track so the audio session stays in the "playing"
-    /// state in the background, keeping the RunLoop alive between voice announcements.
+    /// Called when a workout or interval timer starts, and again when returning from background
+    /// after an interruption (phone call, Siri) that may have stopped the silent player.
+    /// Ensures the audio session stays in the "playing" state so iOS never suspends the app
+    /// between voice announcements.
     func startBackgroundKeepAlive() {
-        guard !isWorkoutActive else { return }
         isWorkoutActive = true
 
+        // Always (re-)activate the session — it may have been deactivated by an interruption.
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
@@ -127,13 +128,19 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
             print("Failed to activate audio session for keepalive: \(error)")
         }
 
+        // Skip rebuilding the player if it is already playing — no need to restart it.
+        if keepAlivePlayer?.isPlaying == true { return }
+
         // Build a minimal valid WAV (1 s of silence at 8 kHz mono 16-bit) entirely in
         // memory — no bundle resource needed. AVAudioPlayer loops it indefinitely with
         // virtually zero CPU or battery impact while keeping the session "playing".
+        keepAlivePlayer?.stop()
+        keepAlivePlayer = nil
+
         if let data = VoiceAnnouncementManager.makeSilentWAVData(),
            let player = try? AVAudioPlayer(data: data) {
             player.numberOfLoops = -1   // loop forever
-            player.volume = 0.0         // truly inaudible
+            player.volume = 0.01        // near-silent but non-zero so iOS treats it as playing
             player.prepareToPlay()
             player.play()
             keepAlivePlayer = player
@@ -212,7 +219,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
             return
         }
 
-        stop()
+        cancelSpeech()  // cancel in-progress speech; keepalive stays running
 
         if countdown {
             countdownCompletion = completion
@@ -254,7 +261,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
             return
         }
 
-        stop()
+        cancelSpeech()  // cancel in-progress speech; keepalive stays running
         startPreciseCountdown(endWord: "Go!", completion: completion)
     }
 
@@ -265,7 +272,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
             return
         }
 
-        stop()
+        cancelSpeech()  // cancel in-progress speech; keepalive stays running
         startPreciseCountdown(endWord: "Stop", completion: completion)
     }
 
@@ -276,7 +283,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
             return
         }
 
-        stop()
+        cancelSpeech()  // cancel in-progress speech; keepalive stays running
         startPreciseCountdown(endWord: "Go!", completion: completion)
     }
 
@@ -440,9 +447,28 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         }
     }
 
-    /// Stops current speech and ends the workout audio session.
-    /// Call this when the workout/timer is fully done (not just between announcements).
+    /// Cancels any in-progress speech and clears the queue WITHOUT touching the keepalive
+    /// player or audio session. Use this before starting a new announcement mid-workout
+    /// so background execution continues uninterrupted.
+    func cancelCurrentSpeech() {
+        cancelSpeech()
+    }
+
+    /// Stops all speech, stops the keepalive, and deactivates the audio session.
+    /// Call this ONLY when the workout/timer is fully done — never between announcements.
     func stop() {
+        cancelSpeech()
+
+        // Tear down the keepalive and release the session so any ducked music is restored.
+        isWorkoutActive = false
+        keepAlivePlayer?.stop()
+        keepAlivePlayer = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    // MARK: - Private Speech Cancellation
+
+    private func cancelSpeech() {
         countdownTimer?.invalidate()
         countdownTimer = nil
         announcementQueue.removeAll()
@@ -455,14 +481,6 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
-
-        // Stop the keepalive player and fully deactivate the session so any ducked music
-        // from other apps is restored. Only done here (end of workout), never between
-        // individual announcements — deactivating mid-workout would let iOS suspend the app.
-        isWorkoutActive = false
-        keepAlivePlayer?.stop()
-        keepAlivePlayer = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     // MARK: - Countdown Logic

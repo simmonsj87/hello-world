@@ -232,7 +232,7 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     func skipExercise() {
-        voiceManager?.stop()
+        voiceManager?.cancelCurrentSpeech()  // cancel speech only; keepalive must stay running
         moveToNext()
     }
 

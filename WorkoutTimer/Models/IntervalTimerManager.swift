@@ -84,7 +84,7 @@ class IntervalTimerManager: ObservableObject {
     /// Start the timer from the beginning
     func start() {
         stopTimer()
-        voiceManager?.stop()
+        voiceManager?.cancelCurrentSpeech()  // cancel speech only; keepalive starts below
         currentState = .working
         currentCycle = 1
         currentRound = 1
@@ -131,7 +131,7 @@ class IntervalTimerManager: ObservableObject {
     /// Reset the timer to beginning and restart
     func reset() {
         stopTimer()
-        voiceManager?.stop()
+        voiceManager?.cancelCurrentSpeech()  // cancel speech only; keepalive restarts below
         currentCycle = 1
         currentRound = 1
         timeRemaining = configuration.workDuration
