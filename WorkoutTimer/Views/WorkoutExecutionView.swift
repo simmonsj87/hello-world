@@ -874,6 +874,11 @@ struct WorkoutExecutionView: View {
             executionManager.enterBackground()
         case .active:
             executionManager.enterForeground()
+            // Re-arm the keepalive in case an audio interruption (phone call, Siri, etc.)
+            // caused the silent player to stop while the app was backgrounded.
+            if executionManager.state != .ready && executionManager.state != .completed {
+                voiceManager.startBackgroundKeepAlive()
+            }
         default:
             break
         }

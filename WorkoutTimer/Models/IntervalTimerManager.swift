@@ -99,6 +99,9 @@ class IntervalTimerManager: ObservableObject {
             state: currentState.displayName
         )
 
+        // Start the silent-audio keepalive so iOS keeps the app alive in background
+        voiceManager?.startBackgroundKeepAlive()
+
         // Announce start with countdown - timer starts when "Go!" is said
         if let voice = voiceManager, voice.isEnabled {
             voice.announceIntervalWorkStart { [weak self] in
@@ -142,6 +145,9 @@ class IntervalTimerManager: ObservableObject {
             time: formattedTimeRemaining,
             state: currentState.displayName
         )
+
+        // Ensure the keepalive is running (restart picks up where start left off)
+        voiceManager?.startBackgroundKeepAlive()
 
         // Announce restart with countdown - timer starts when "Go!" is said
         if let voice = voiceManager, voice.isEnabled {

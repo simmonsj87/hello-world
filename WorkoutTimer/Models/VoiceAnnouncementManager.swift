@@ -47,6 +47,15 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     // System sound IDs for bell sounds
     private let bellSoundID: SystemSoundID = 1013  // Mail sent sound (ding)
 
+    // Background keepalive: a silent audio player that loops continuously while a workout
+    // is active. This ensures the audio session stays in the "playing" state so iOS never
+    // suspends the app between voice announcements. Without this, iOS can suspend the app
+    // during silent gaps and the next announcement will never fire.
+    private var keepAlivePlayer: AVAudioPlayer?
+
+    /// Whether a workout is currently active (keepalive is running)
+    private var isWorkoutActive: Bool = false
+
     // MARK: - Computed Properties
 
     /// Available voices for the current locale and English
@@ -92,16 +101,88 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
 
     private func setupAudioSession() {
         do {
-            let audioSession = AVAudioSession.sharedInstance()
-            // Use .spokenAudio mode (does NOT manipulate system volume, unlike .voicePrompt).
-            // Use .duckOthers so background music lowers while announcements play, then
-            // automatically returns to normal — keeping announcement and music at the same
-            // perceived level without changing the system volume at all.
-            try audioSession.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
-            try audioSession.setActive(true)
+            // .spokenAudio: designed for TTS — never manipulates system volume (unlike .voicePrompt)
+            // .mixWithOthers: initial/idle mode so the keepalive player does not duck music;
+            //   we switch to .duckOthers only while an announcement is actually speaking.
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
         } catch {
-            print("Failed to setup audio session: \(error.localizedDescription)")
+            print("Failed to configure audio session: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Background Keepalive
+
+    /// Called when a workout or interval timer starts.
+    /// Begins looping a silent audio track so the audio session stays in the "playing"
+    /// state in the background, keeping the RunLoop alive between voice announcements.
+    func startBackgroundKeepAlive() {
+        guard !isWorkoutActive else { return }
+        isWorkoutActive = true
+
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            print("Failed to activate audio session for keepalive: \(error)")
+        }
+
+        // Build a minimal valid WAV (1 s of silence at 8 kHz mono 16-bit) entirely in
+        // memory — no bundle resource needed. AVAudioPlayer loops it indefinitely with
+        // virtually zero CPU or battery impact while keeping the session "playing".
+        if let data = VoiceAnnouncementManager.makeSilentWAVData(),
+           let player = try? AVAudioPlayer(data: data) {
+            player.numberOfLoops = -1   // loop forever
+            player.volume = 0.0         // truly inaudible
+            player.prepareToPlay()
+            player.play()
+            keepAlivePlayer = player
+        }
+    }
+
+    /// Generates a minimal valid 16-bit mono PCM WAV file containing 1 second of silence.
+    private static func makeSilentWAVData() -> Data? {
+        let sampleRate: UInt32 = 8000           // 8 kHz — tiny file, more than sufficient
+        let numSamples: UInt32 = sampleRate     // 1 second
+        let dataSize = numSamples * 2           // 16-bit = 2 bytes per sample
+
+        var d = Data(capacity: 44 + Int(dataSize))
+
+        // Little-endian helpers
+        func u32(_ v: UInt32) { withUnsafeBytes(of: v.littleEndian) { d.append(contentsOf: $0) } }
+        func u16(_ v: UInt16) { withUnsafeBytes(of: v.littleEndian) { d.append(contentsOf: $0) } }
+
+        d.append(contentsOf: [0x52, 0x49, 0x46, 0x46])  // "RIFF"
+        u32(36 + dataSize)                               // RIFF chunk size
+        d.append(contentsOf: [0x57, 0x41, 0x56, 0x45])  // "WAVE"
+
+        d.append(contentsOf: [0x66, 0x6D, 0x74, 0x20])  // "fmt "
+        u32(16)                                          // fmt chunk size
+        u16(1)                                           // PCM
+        u16(1)                                           // 1 channel
+        u32(sampleRate)
+        u32(sampleRate * 2)                              // byte rate
+        u16(2)                                           // block align
+        u16(16)                                          // bits per sample
+
+        d.append(contentsOf: [0x64, 0x61, 0x74, 0x61])  // "data"
+        u32(dataSize)
+        d.append(contentsOf: [UInt8](repeating: 0, count: Int(dataSize)))
+
+        return d
+    }
+
+    /// Switches the session to .duckOthers so background music lowers while TTS plays.
+    private func activateDucking() {
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+    }
+
+    /// Restores the session to .mixWithOthers after an announcement finishes, so music
+    /// returns to full volume. Keeps the session active (does NOT call setActive(false))
+    /// so background execution is not interrupted between announcements.
+    private func restoreToMixMode() {
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
     }
 
     // MARK: - Public Methods
@@ -110,13 +191,9 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     func speak(_ text: String) {
         guard isEnabled, !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
 
-        // Ensure audio session is active before speaking
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setActive(true)
-        } catch {
-            print("Failed to activate audio session: \(error.localizedDescription)")
-        }
+        // Switch to .duckOthers so music lowers while we speak, and ensure the session
+        // is active (re-activates automatically if it was deactivated by an interruption)
+        activateDucking()
 
         let utterance = createUtterance(for: text)
 
@@ -272,6 +349,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     /// Speaks a single countdown word without delays
     private func speakCountdownWord(_ word: String) {
         guard !word.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        activateDucking()
         let utterance = AVSpeechUtterance(string: word)
         utterance.voice = currentVoice ?? findBestAvailableVoice() ?? AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.52  // Slightly faster for crisp countdown
@@ -362,7 +440,8 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         }
     }
 
-    /// Stops current speech
+    /// Stops current speech and ends the workout audio session.
+    /// Call this when the workout/timer is fully done (not just between announcements).
     func stop() {
         countdownTimer?.invalidate()
         countdownTimer = nil
@@ -377,7 +456,12 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
 
-        // Deactivate the audio session so ducked music returns to its original level
+        // Stop the keepalive player and fully deactivate the session so any ducked music
+        // from other apps is restored. Only done here (end of workout), never between
+        // individual announcements — deactivating mid-workout would let iOS suspend the app.
+        isWorkoutActive = false
+        keepAlivePlayer?.stop()
+        keepAlivePlayer = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
@@ -569,7 +653,7 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         DispatchQueue.main.async {
             if self.isProcessingQueue && !self.announcementQueue.isEmpty {
-                // Small delay between countdown numbers
+                // More items in the queue — keep ducking and speak the next one
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     self.processNextAnnouncement()
                 }
@@ -577,11 +661,13 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
                 self.isSpeaking = false
                 self.isProcessingQueue = false
 
-                // When no more speech is queued or pending (countdown timer done too),
-                // deactivate the session so ducked music returns to its original level.
-                // speak() will reactivate when the next announcement fires.
+                // Only restore when the countdown timer is also done (i.e., all speech
+                // for this announcement sequence is truly finished).
                 if self.countdownTimer == nil {
-                    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+                    // Switch back to .mixWithOthers so background music returns to full
+                    // volume. Do NOT call setActive(false) — that would let iOS suspend
+                    // the app and silence all subsequent announcements.
+                    self.restoreToMixMode()
                 }
 
                 // Call completion handler when countdown queue finishes (if not already called on start)
@@ -597,8 +683,8 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
         DispatchQueue.main.async {
             self.isSpeaking = false
             self.triggerOnStart = false
-            // Deactivate so music returns to normal level
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            // Restore mix mode so music returns to normal; keep session active for background
+            self.restoreToMixMode()
         }
     }
 }
