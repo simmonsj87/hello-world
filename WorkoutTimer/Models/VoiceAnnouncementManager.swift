@@ -93,9 +93,11 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     private func setupAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            // Use .mixWithOthers so voice announcements don't duck (lower) background music.
-            // .voicePrompt mode ensures the system treats these as intermittent prompts.
-            try audioSession.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers])
+            // Use .spokenAudio mode (does NOT manipulate system volume, unlike .voicePrompt).
+            // Use .duckOthers so background music lowers while announcements play, then
+            // automatically returns to normal — keeping announcement and music at the same
+            // perceived level without changing the system volume at all.
+            try audioSession.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
             try audioSession.setActive(true)
         } catch {
             print("Failed to setup audio session: \(error.localizedDescription)")
@@ -106,7 +108,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
 
     /// Speaks the given text immediately
     func speak(_ text: String) {
-        guard isEnabled else { return }
+        guard isEnabled, !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
 
         // Ensure audio session is active before speaking
         do {
@@ -242,7 +244,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
                 self.countdownTimer = nil
                 let finalWord = countdownSequence[currentIndex]
                 currentIndex += 1
-                self.countdownTimer = Timer.scheduledTimer(withTimeInterval: 0.65, repeats: false) { [weak self] _ in
+                let finalTimer = Timer.scheduledTimer(withTimeInterval: 0.65, repeats: false) { [weak self] _ in
                     guard let self = self else { return }
                     self.speakCountdownWord(finalWord)
                     self.countdownTimer = nil
@@ -251,6 +253,9 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
                         comp()
                     }
                 }
+                // .common mode ensures this fires even when the app is in the background
+                RunLoop.main.add(finalTimer, forMode: .common)
+                self.countdownTimer = finalTimer
             } else if currentIndex >= countdownSequence.count {
                 timer.invalidate()
                 self.countdownTimer = nil
@@ -260,10 +265,13 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
                 }
             }
         }
+        // .common mode ensures this fires even when the app is in the background
+        RunLoop.main.add(countdownTimer!, forMode: .common)
     }
 
     /// Speaks a single countdown word without delays
     private func speakCountdownWord(_ word: String) {
+        guard !word.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         let utterance = AVSpeechUtterance(string: word)
         utterance.voice = currentVoice ?? findBestAvailableVoice() ?? AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.52  // Slightly faster for crisp countdown
@@ -368,6 +376,9 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
+
+        // Deactivate the audio session so ducked music returns to its original level
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     // MARK: - Countdown Logic
@@ -566,6 +577,13 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
                 self.isSpeaking = false
                 self.isProcessingQueue = false
 
+                // When no more speech is queued or pending (countdown timer done too),
+                // deactivate the session so ducked music returns to its original level.
+                // speak() will reactivate when the next announcement fires.
+                if self.countdownTimer == nil {
+                    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+                }
+
                 // Call completion handler when countdown queue finishes (if not already called on start)
                 if let completion = self.countdownCompletion {
                     self.countdownCompletion = nil
@@ -579,6 +597,8 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
         DispatchQueue.main.async {
             self.isSpeaking = false
             self.triggerOnStart = false
+            // Deactivate so music returns to normal level
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }
 }
