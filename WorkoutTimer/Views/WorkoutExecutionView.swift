@@ -872,10 +872,16 @@ struct WorkoutExecutionView: View {
         switch phase {
         case .background:
             executionManager.enterBackground()
+            // Ensure the audio session is fresh before iOS checks whether to allow
+            // background execution. If the session isn't "playing" at this moment,
+            // iOS may immediately suspend the app.
+            if executionManager.state != .ready && executionManager.state != .completed {
+                voiceManager.startBackgroundKeepAlive()
+            }
         case .active:
             executionManager.enterForeground()
-            // Re-arm the keepalive in case an audio interruption (phone call, Siri, etc.)
-            // caused the silent player to stop while the app was backgrounded.
+            // Re-arm the keepalive in case an audio interruption (phone call, Siri,
+            // Spotify) paused the silent player while the app was backgrounded.
             if executionManager.state != .ready && executionManager.state != .completed {
                 voiceManager.startBackgroundKeepAlive()
             }

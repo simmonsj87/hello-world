@@ -95,18 +95,84 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         speechSynthesizer.delegate = self
         loadSettings()
         setupAudioSession()
+        registerAudioSessionObservers()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Audio Session Setup
 
     private func setupAudioSession() {
         do {
-            // .spokenAudio: designed for TTS — never manipulates system volume (unlike .voicePrompt)
+            // .default mode (not .spokenAudio): .spokenAudio is designed for audiobooks —
+            // iOS automatically mutes the session when ANY other audio starts and keeps it
+            // muted indefinitely. That breaks coexistence with Spotify. .default lets us
+            // control ducking ourselves via .duckOthers/.mixWithOthers.
             // .mixWithOthers: initial/idle mode so the keepalive player does not duck music;
             //   we switch to .duckOthers only while an announcement is actually speaking.
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
         } catch {
             print("Failed to configure audio session: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Audio Session Notification Observers
+
+    private func registerAudioSessionObservers() {
+        // Re-arm the keepalive when an interruption ends (e.g., Spotify paused between
+        // songs, phone call finished, Siri dismissed). Without this the keepalive stays
+        // dead after iOS mutes our session for the interruption.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+
+        // The media server occasionally crashes and restarts; rebuild everything after.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMediaServicesReset(_:)),
+            name: AVAudioSession.mediaServicesWereResetNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleAudioInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+
+        switch type {
+        case .began:
+            // Another app (Spotify, phone call, Siri) has taken the audio session.
+            // The keepalive player is now paused by the system — nothing to do here;
+            // we wait for .ended to re-arm.
+            break
+
+        case .ended:
+            // The interrupting source has relinquished the session.
+            // Re-arm if a workout is still running so background execution resumes.
+            guard isWorkoutActive else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.startBackgroundKeepAlive()
+            }
+
+        @unknown default:
+            break
+        }
+    }
+
+    @objc private func handleMediaServicesReset(_ notification: Notification) {
+        // The media server crashed and restarted. All audio objects are invalid.
+        // Rebuild the session and keepalive from scratch.
+        setupAudioSession()
+        if isWorkoutActive {
+            DispatchQueue.main.async { [weak self] in
+                self?.startBackgroundKeepAlive()
+            }
         }
     }
 
@@ -122,7 +188,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
         // Always (re-)activate the session — it may have been deactivated by an interruption.
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true)
         } catch {
             print("Failed to activate audio session for keepalive: \(error)")
@@ -181,7 +247,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
 
     /// Switches the session to .duckOthers so background music lowers while TTS plays.
     private func activateDucking() {
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.duckOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
     }
 
@@ -189,7 +255,7 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     /// returns to full volume. Keeps the session active (does NOT call setActive(false))
     /// so background execution is not interrupted between announcements.
     private func restoreToMixMode() {
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
     }
 
     // MARK: - Public Methods

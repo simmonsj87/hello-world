@@ -93,9 +93,12 @@ struct TimerView: View {
                 timerManager.configuration = newConfig
             }
             .onChange(of: scenePhase) { _, phase in
-                // When returning from background, ensure the keepalive is still running
-                // if the timer is active (an audio interruption can stop the player).
-                if phase == .active && timerManager.currentState != .idle && timerManager.currentState != .completed {
+                let timerRunning = timerManager.currentState != .idle && timerManager.currentState != .completed
+                guard timerRunning else { return }
+                // Re-arm going to background (ensures the session is "playing" before iOS
+                // checks whether to allow background execution) and again on return
+                // (recovers from any interruption that paused the player while backgrounded).
+                if phase == .background || phase == .active {
                     voiceManager.startBackgroundKeepAlive()
                 }
             }
