@@ -84,7 +84,7 @@ class IntervalTimerManager: ObservableObject {
     /// Start the timer from the beginning
     func start() {
         stopTimer()
-        voiceManager?.stop()
+        voiceManager?.cancelCurrentSpeech()  // cancel speech only; keepalive starts below
         currentState = .working
         currentCycle = 1
         currentRound = 1
@@ -98,6 +98,9 @@ class IntervalTimerManager: ObservableObject {
             time: formattedTimeRemaining,
             state: currentState.displayName
         )
+
+        // Start the silent-audio keepalive so iOS keeps the app alive in background
+        voiceManager?.startBackgroundKeepAlive()
 
         // Announce start with countdown - timer starts when "Go!" is said
         if let voice = voiceManager, voice.isEnabled {
@@ -128,7 +131,7 @@ class IntervalTimerManager: ObservableObject {
     /// Reset the timer to beginning and restart
     func reset() {
         stopTimer()
-        voiceManager?.stop()
+        voiceManager?.cancelCurrentSpeech()  // cancel speech only; keepalive restarts below
         currentCycle = 1
         currentRound = 1
         timeRemaining = configuration.workDuration
@@ -142,6 +145,9 @@ class IntervalTimerManager: ObservableObject {
             time: formattedTimeRemaining,
             state: currentState.displayName
         )
+
+        // Ensure the keepalive is running (restart picks up where start left off)
+        voiceManager?.startBackgroundKeepAlive()
 
         // Announce restart with countdown - timer starts when "Go!" is said
         if let voice = voiceManager, voice.isEnabled {

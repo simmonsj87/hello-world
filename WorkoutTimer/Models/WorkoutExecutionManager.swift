@@ -192,6 +192,11 @@ class WorkoutExecutionManager: ObservableObject {
             state: stateDisplayText
         )
 
+        // Start the silent-audio keepalive so iOS keeps the app alive in the background
+        // between voice announcements (background audio requires the session to be
+        // continuously "playing", not merely "active").
+        voiceManager?.startBackgroundKeepAlive()
+
         // Start warmup if duration > 0, otherwise go straight to countdown
         if warmupDuration > 0 {
             startWarmup()
@@ -227,7 +232,7 @@ class WorkoutExecutionManager: ObservableObject {
     }
 
     func skipExercise() {
-        voiceManager?.stop()
+        voiceManager?.cancelCurrentSpeech()  // cancel speech only; keepalive must stay running
         moveToNext()
     }
 

@@ -11,6 +11,7 @@ struct TimerView: View {
     @StateObject private var timerManager = IntervalTimerManager()
     @StateObject private var voiceManager = VoiceAnnouncementManager()
     @ObservedObject private var presetsManager = TimerPresetsManager.shared
+    @Environment(\.scenePhase) private var scenePhase
     @State private var configuration = TimerConfiguration.default
     @State private var showingSaveSheet = false
     @State private var showingLoadSheet = false
@@ -90,6 +91,13 @@ struct TimerView: View {
             }
             .onChange(of: configuration) { _, newConfig in
                 timerManager.configuration = newConfig
+            }
+            .onChange(of: scenePhase) { _, phase in
+                // When returning from background, ensure the keepalive is still running
+                // if the timer is active (an audio interruption can stop the player).
+                if phase == .active && timerManager.currentState != .idle && timerManager.currentState != .completed {
+                    voiceManager.startBackgroundKeepAlive()
+                }
             }
         }
     }
