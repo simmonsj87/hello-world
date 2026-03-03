@@ -405,7 +405,12 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
     func announceIntervalComplete() {
         guard isEnabled else { return }
 
-        stop()
+        // Use cancelSpeech() (not stop()) so the keepalive player stays running through the
+        // final announcement. Calling stop() here would deactivate the session before
+        // "Workout complete!" fires, causing it to silently fail in the background.
+        // The caller (IntervalTimerManager) will invoke voiceManager?.stop() on the next
+        // explicit stop/dismiss action, which is the correct time to tear down the session.
+        cancelSpeech()
         playDoubleBell()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.speak("Workout complete! Great job!")
@@ -528,6 +533,10 @@ class VoiceAnnouncementManager: NSObject, ObservableObject {
             utterance.preUtteranceDelay = 0
         }
 
+        // Ensure session is active and music ducks before speaking. The queue processor
+        // calls speechSynthesizer.speak() directly (bypassing speak()), so it must call
+        // activateDucking() itself; otherwise queue announcements play without ducking.
+        activateDucking()
         speechSynthesizer.speak(utterance)
     }
 
@@ -687,12 +696,10 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
                     // the app and silence all subsequent announcements.
                     self.restoreToMixMode()
                 }
-
-                // Call completion handler when countdown queue finishes (if not already called on start)
-                if let completion = self.countdownCompletion {
-                    self.countdownCompletion = nil
-                    completion()
-                }
+                // Note: countdownCompletion is always fired earlier — either from
+                // the finalTimer closure in startPreciseCountdown (for interval
+                // countdowns) or from didStart when triggerOnStart is true (for queue
+                // countdowns). There is no path where it is still non-nil here.
             }
         }
     }
@@ -701,8 +708,13 @@ extension VoiceAnnouncementManager: AVSpeechSynthesizerDelegate {
         DispatchQueue.main.async {
             self.isSpeaking = false
             self.triggerOnStart = false
-            // Restore mix mode so music returns to normal; keep session active for background
-            self.restoreToMixMode()
+            // Only restore mix mode if no new speech has already started. If a new
+            // utterance began between the stopSpeaking(at: .immediate) call and this
+            // async dispatch, changing the session category here would corrupt the
+            // new utterance's audio buffer (AVAudioBuffer.mm crash).
+            if !self.speechSynthesizer.isSpeaking {
+                self.restoreToMixMode()
+            }
         }
     }
 }
